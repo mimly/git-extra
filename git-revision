@@ -1,0 +1,10 @@
+#!/bin/bash
+
+if [[ -z $@ ]] ; then
+    printf "USAGE: git revision <message>\n"
+    exit 1
+fi
+
+git add -A &&\
+git commit -S -s -m "$@" &&\
+printf "\n\n* * * NEW REVISION DONE * * *\n\n"

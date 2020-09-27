@@ -1,0 +1,5 @@
+#!/bin/bash
+
+git config --local user.name "Mikołaj Młyńczak" &&\
+git config --local user.email "mlynczak@kth.se" &&\
+git config --local user.signingkey "36DB2E1989B9A0E0"

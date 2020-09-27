@@ -1,0 +1,6 @@
+#!/bin/bash
+
+REGEXP="$1" &&\
+git log --pretty=oneline --all --full-history -G"$REGEXP" -- $2 &&\
+shift 1 &&\
+echo 'Revision(s) that modified \"' $REGEXP '\".'	

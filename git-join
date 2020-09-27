@@ -1,0 +1,19 @@
+#!/bin/bash
+
+function getNumberOfCommits() {
+    git rev-list --count $1
+}
+
+commits=$(getNumberOfCommits HEAD)
+if [[ -z $1 || -z $2 || $1 -lt 1 || $commits -le 1 || $1 -ge $commits ]] ; then
+    printf "USAGE: git join <number of last revisions> <message>\n"
+    exit 1
+fi
+
+if [[ $1 == 1 ]] ; then
+    git rename $1 "$2"
+else
+    git reset --soft HEAD~$1 &&\
+    git revision "$2" &&\
+    printf "* * * THE %d LAST REVISIONS JOINED * * *\n\n" $1
+fi

@@ -1,0 +1,5 @@
+#!/bin/bash
+
+git add -A &&\
+git commit -S -s --reset-author --amend --no-edit --date="$(date -R)" &&\
+printf "\n\n* * * LAST REVISION UPDATED * * *\n\n"

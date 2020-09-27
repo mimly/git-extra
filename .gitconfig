@@ -1,0 +1,29 @@
+# This is Git's per-user configuration file.
+[alias]
+	j = join
+	l = logs
+	r = revision
+	s = save
+[color]
+	ui = always
+	branch = auto
+	diff = always
+	interactive = always
+	status = always
+	pager = true
+	grep = always
+	decorate = always
+	showbranch = always
+[core]
+	autocrlf = input
+	eol = native
+[gpg]
+	program = gpg2
+[user]
+	email = m.j.mlynczak@gmail.com
+	name = mimly
+	signingkey = 14A223F8217DDFEB
+[receive]
+	denyDeletes = true
+	denyNonFastForwards = true
+	denyCurrentBranch = ignore

@@ -1,0 +1,40 @@
+# This is Git's per-user configuration file.
+[alias]
+	files = !find . -type f -print | grep -v -E '/.git/' | wc -l
+	members = !( ri=$(git log --pretty=oneline | wc -l) && mi=$(git shortlog -s -n | wc -l) && echo "Totally $ri revisions committed by $mi members:" && git --no-pager shortlog -s -n --format='%C(red) %an %Creset' ) | $PAGER	
+	find = !REGEXP="$1" && git log --pretty=oneline --all --full-history -G"\"$REGEXP\"" -- $2 && shift 1 && echo 'Revision(s) that modified \"' $REGEXP '\".'	
+	
+	find2 = !A="$1" && B="$2" && FILE="$3" && git log --pretty=oneline --reverse -L"$A","$B":"$FILE" && shift 3 && echo 'Revision(s) that modified lines' $A 'to' $B 'in' $FILE '.'	
+	diffs = !git diff --name-status "$1".."$2"
+	revision = !git add -A && git commit -S -s -m "\"$@\"" && shift 1 && printf '\n\n* * * %s * * *\n\n' 'NEW REVISION DONE'
+	save = !git add -A && git commit -S -s --reset-author --amend --no-edit --date="\"$(date -R)\"" && printf '\n\n* * * %s * * *\n\n' 'SAVED'
+	rename = "!export N=$1 && export MOD_HASH=$( git rev-parse --short=6 HEAD~$(($N - 1)) ) && export MOD_MESSAGE=$2 && shift 2 && git rebase HEAD~$N --exec 'if [[ $MOD_HASH == $(git rev-parse --short=6 HEAD) ]] ; then git commit --amend -m $MOD_MESSAGE ; fi'"
+	logs = !git log --abbrev-commit --abbrev=12 --date=format:'%Y-%m-%d %H:%M:%S' --pretty='format:%C(yellow)%h%Creset %C(red)%C(bold)%s%Creset\n%C(cyan)%C(bold)%d%Creset %C(cyan)%cd (%cr) by %C(dim)%cn%Creset\n'
+	tree = !git log --all --graph --decorate --oneline
+    join = !git reset --soft HEAD~$1 && git revision "\"$2\"" && n="$1" && shift 2 && printf '* * * %s <- %d * * *\n\n' 'THE LAST REVISION(S) JOINED' $n
+
+	kth-on = !git config --local user.name "\"Mikołaj Młyńczak\"" && git config --local user.email "mlynczak@kth.se" && git config --local user.signingkey "36DB2E1989B9A0E0"
+	kth-off = !git config --local --unset user.name && git config --local --unset user.email && git config --local --unset user.signingkey
+[color]
+	ui = always
+	branch = auto
+	diff = always
+	interactive = always
+	status = always
+	pager = true
+	grep = always
+	decorate = always
+	showbranch = always
+[core]
+	autocrlf = input
+	eol = native
+[gpg]
+	program = gpg2
+[user]
+	email = m.j.mlynczak@gmail.com
+	name = mimly
+	signingkey = 14A223F8217DDFEB
+[receive]
+	denyDeletes = true
+	denyNonFastForwards = true
+	denyCurrentBranch = ignore

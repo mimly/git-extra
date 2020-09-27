@@ -1,0 +1,5 @@
+#!/bin/bash
+
+git config --local --unset user.name &&\
+git config --local --unset user.email &&\
+git config --local --unset user.signingkey
