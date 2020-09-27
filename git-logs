@@ -1,3 +1,19 @@
 #!/bin/bash
 
-git log --abbrev-commit --abbrev=12 --date=format:"%Y-%m-%d %H:%M:%S" --pretty=format:"%C(yellow)%h%Creset %C(red)%C(bold)%s%Creset%n%C(cyan)%C(bold)%d%Creset %C(cyan)%cd (%cr) by %C(dim)%cn%Creset" 
+source fs4git.sh
+
+if [[ $# -eq 0 ]] ; then
+    :
+elif [[ $# -eq 1 && $1 -ge 1 && $1 -lt `totalNumberOfCommits HEAD` ]] ; then
+    specificLog=$1
+else
+    printf "USAGE: git logs [<specificLog>]\n"
+    exit 1
+fi
+
+if [[ -z $specificLog ]] ; then
+    git log --abbrev-commit --abbrev=12 --date=format:"%Y-%m-%d %H:%M:%S" --pretty=format:"%C(yellow)%h%Creset %C(red)%C(bold)%s%Creset%n%C(cyan)%C(bold)%d%Creset %C(cyan)%cd (%cr) by %C(dim)%cn%Creset"
+else
+    git log --abbrev-commit --abbrev=12 --date=format:"%Y-%m-%d %H:%M:%S" --pretty=format:"%C(yellow)%h%Creset %C(red)%C(bold)%s%Creset%n%C(cyan)%C(bold)%d%Creset %C(cyan)%cd (%cr) by %C(dim)%cn%Creset" HEAD~$specificLog..HEAD~$(($specificLog - 1))
+fi &&\
+printf ${TERMINAL_DEFAULT_COLOR:2:-2}

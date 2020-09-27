@@ -1,0 +1,25 @@
+#!/bin/bash
+
+source fs4git.sh
+
+if [[ $# -eq 2 ]] ; then
+    revision=$1
+    date=$2
+    message=`commitMessage $(commitHash $revision)`
+elif [[ $# -eq 3 ]] ; then
+    revision=$1
+    date=$2
+    message=$3
+else
+    printf "USAGE: git redate <revision> <date> [<message=same>]\n"
+    exit 1
+fi
+
+if [[ $revision -lt 1 || `totalNumberOfCommits HEAD` -le 1 || $revision -ge `totalNumberOfCommits HEAD` || `isInvalidDate "$date"` ]] ; then
+    printf "USAGE: git redate <revision> <date> [<message=same>]\n"
+    exit 1
+fi
+
+git join 1 "$message" $revision "$date" 2>&1 >/dev/null &&\
+printf "\n\n* * * #%d REVISION REDATED AT \"%s\" * * *\n\n" $revision "$date" &&\
+git logs $revision

@@ -1,19 +1,55 @@
 #!/bin/bash
 
-function getNumberOfCommits() {
-    git rev-list --count $1
-}
+source fs4git.sh
 
-commits=$(getNumberOfCommits HEAD)
-if [[ -z $1 || -z $2 || $1 -lt 1 || $commits -le 1 || $1 -ge $commits ]] ; then
-    printf "USAGE: git join <number of last revisions> <message>\n"
+if [[ $# -eq 2 ]] ; then
+    numberOfRevisions=$1
+    message=$2
+    from=1
+elif [[ $# -eq 3 ]] ; then
+    numberOfRevisions=$1
+    message=$2
+    if [[ "$3" =~ ^[0-9]+$ ]] ; then
+        from=$3
+    else
+        from=1
+        date=$3
+    fi
+elif [[ $# -eq 4 ]] ; then
+    numberOfRevisions=$1
+    message=$2
+    from=$3
+    date=$4
+else
+    printf "USAGE: git join <numberOfRevisions> <message> [<from=1>] [<date=then>]\n"
     exit 1
 fi
 
-if [[ $1 == 1 ]] ; then
-    git rename $1 "$2"
-else
-    git reset --soft HEAD~$1 &&\
-    git revision "$2" &&\
-    printf "* * * THE %d LAST REVISIONS JOINED * * *\n\n" $1
+if [[ $numberOfRevisions -lt 1 || $numberOfRevisions -gt $(( `totalNumberOfCommits HEAD` - $from )) ]] ; then
+    printf "USAGE: git join <numberOfRevisions> <message> [<from=1>] [<date=then>]\n"
+    exit 1
 fi
+
+declare -a commitMessages &&\
+declare -a commitDates &&\
+
+for (( i = 0; i < $from - 1; ++i )) ; do
+    commitMessages[$i]=`commitMessage HEAD` &&\
+    commitDates[$i]=`commitDate HEAD` &&\
+    git reset --soft HEAD~1 &&\
+    git stash
+done &&\
+
+if [[ -z $date ]] ; then
+    date=`commitDate HEAD`
+fi &&\
+
+git reset --soft HEAD~$numberOfRevisions &&\
+git revision "$message" "$date" &&\
+
+for (( i = $from - 2; i >= 0; --i )) ; do
+    git stash pop &&\
+    git revision "${commitMessages[$i]}" "${commitDates[$i]}"
+done &&\
+
+printf "* * * THE %d LAST REVISIONS (FROM %d) JOINED * * *\n\n" $numberOfRevisions $from

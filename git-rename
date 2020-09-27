@@ -1,18 +1,28 @@
 #!/bin/bash
 
-function getNumberOfCommits() {
-    git rev-list --count $1
-}
+source fs4git.sh
 
-commits=$(getNumberOfCommits HEAD)
-if [[ -z $1 || -z $2 || $1 -lt 1 || $commits -le 1 || $1 -ge $commits ]] ; then
-    printf "USAGE: git rename <number> <message>\n"
+if [[ $# -eq 2 ]] ; then
+    revision=$1
+    message=$2
+elif [[ $# -eq 3 ]] ; then
+    revision=$1
+    message=$2
+    date=$3
+else
+    printf "USAGE: git rename <revision> <message> [<date=then>]\n"
     exit 1
 fi
 
-export number=$1 &&\
-export hash=$( git rev-parse --short=6 HEAD~$(($number - 1)) ) &&\
-export message=$2 &&\
-#shift 2 &&\
-git rebase HEAD~$number --exec 'if [[ $hash == $(git rev-parse --short=6 HEAD) ]] ; then git commit --amend -m $message ; fi' &&\
-printf "\n\n* * * #%d REVISION RENAMED TO %s * * *\n\n" $number "\"$message\""
+if [[ $revision -lt 1 || `totalNumberOfCommits HEAD` -le 1 || $revision -ge `totalNumberOfCommits HEAD` || `isInvalidDate "$date"` ]] ; then
+    printf "USAGE: git rename <revision> <message> [<date=then>]\n"
+    exit 1
+fi
+
+if [[ -z $date ]] ; then
+    git join 1 "$message" $revision 2>&1 >/dev/null
+else
+    git join 1 "$message" $revision "$date" 2>&1 >/dev/null
+fi &&\
+printf "\n\n* * * #%d REVISION RENAMED AS \"%s\" * * *\n\n" $revision "$message" &&\
+git logs $revision

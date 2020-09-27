@@ -1,10 +1,19 @@
 #!/bin/bash
 
-if [[ -z $@ ]] ; then
-    printf "USAGE: git revision <message>\n"
+source fs4git.sh
+
+if [[ $# -eq 1 ]] ; then
+    message=$1
+elif [[ $# -eq 2 ]] ; then
+    message=$1
+    export GIT_AUTHOR_DATE=$2
+    export GIT_COMMITTER_DATE=$2
+else
+    printf "USAGE: git revision <message> [<date=now>]\n"
     exit 1
 fi
 
 git add -A &&\
-git commit -S -s -m "$@" &&\
-printf "\n\n* * * NEW REVISION DONE * * *\n\n"
+git commit -S -s -m "$message" &&\
+printf "\n\n* * * NEW REVISION DONE * * *\n\n" &&\
+git logs 1

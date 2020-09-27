@@ -1,5 +1,18 @@
 #!/bin/bash
 
+source fs4git.sh
+
+if [[ $# -eq 0 ]] ; then
+    :
+elif [[ $# -eq 1 ]] ; then
+    export GIT_AUTHOR_DATE=$1
+    export GIT_COMMITTER_DATE=$1
+else
+    printf "USAGE: git save [<date=now>]\n"
+    exit 1
+fi
+
 git add -A &&\
-git commit -S -s --reset-author --amend --no-edit --date="$(date -R)" &&\
-printf "\n\n* * * LAST REVISION UPDATED * * *\n\n"
+git commit -S -s --reset-author --amend --no-edit &&\
+printf "\n\n* * * LAST REVISION UPDATED * * *\n\n" &&\
+git logs 1
