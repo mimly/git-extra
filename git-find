@@ -1,6 +1,28 @@
 #!/bin/bash
 
-REGEXP="$1" &&\
-git log --pretty=oneline --all --full-history -G"$REGEXP" -- $2 &&\
-shift 1 &&\
-echo 'Revision(s) that modified \"' $REGEXP '\".'	
+source fs4git.sh
+
+if [[ $# -eq 1 ]] ; then
+    regex=$1
+    text="REGEX $regex IN ALL FILES"
+elif [[ $# -eq 2 ]] ; then
+    regex=$1
+    file=$2
+    text="REGEX $regex IN THE FILE \"$file\""
+elif [[ $# -eq 3 ]] ; then
+    firstLine=$1
+    lastLine=$2
+    file=$3
+    text="LINES $firstLine-$lastLine IN THE FILE \"$file\""
+else
+    printf "USAGE: git find <regex> [<file=all>] OR git find <firstLine> <lastLine> <file>\n"
+    exit 1
+fi
+
+printf "* * * %s MODIFIED BY THE FOLLOWING REVISION(S): * * *\n\n" "$text"
+if [[ $# -eq 3 ]] ; then
+    git log --abbrev-commit --abbrev=12 --date=format:"%Y-%m-%d %H:%M:%S" --pretty=format:"%C(cyan)%h%Creset %C(red)%C(bold)%s%Creset%n%C(yellow)%C(bold)%C(dim)%d%Creset %C(yellow)%cd (%cr) by %C(dim)%cn%Creset" --reverse -L$firstLine,$lastLine:$file
+else
+    git log --abbrev-commit --abbrev=12 --date=format:"%Y-%m-%d %H:%M:%S" --pretty=format:"%C(cyan)%h%Creset %C(red)%C(bold)%s%Creset%n%C(yellow)%C(bold)%C(dim)%d%Creset %C(yellow)%cd (%cr) by %C(dim)%cn%Creset" --all --full-history -G$regex -- $file
+fi &&\
+printf ${TERMINAL_DEFAULT_COLOR:2:-2}

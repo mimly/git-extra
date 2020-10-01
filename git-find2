@@ -1,8 +1,0 @@
-#!/bin/bash
-
-A="$1" &&\
-B="$2" &&\
-FILE="$3" &&\
-git log --pretty=oneline --reverse -L"$A","$B":"$FILE" &&\
-shift 3 &&\
-echo 'Revision(s) that modified lines' $A 'to' $B 'in' $FILE '.'	
