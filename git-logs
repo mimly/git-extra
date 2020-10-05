@@ -16,4 +16,4 @@ if [[ -z $specificLog ]] ; then
 else
     git log --abbrev-commit --abbrev=12 --date=format:"%Y-%m-%d %H:%M:%S" --pretty=format:"%C(yellow)%h%Creset %C(red)%C(bold)%s%Creset%n%C(cyan)%C(bold)%d%Creset %C(cyan)%cd (%cr) by %C(dim)%cn%Creset" HEAD~$specificLog..HEAD~$(($specificLog - 1))
 fi &&\
-printf ${TERMINAL_DEFAULT_COLOR:2:-2}
+printf $TERMINAL_DEFAULT_COLOR

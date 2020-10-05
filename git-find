@@ -25,4 +25,4 @@ if [[ $# -eq 3 ]] ; then
 else
     git log --abbrev-commit --abbrev=12 --date=format:"%Y-%m-%d %H:%M:%S" --pretty=format:"%C(cyan)%h%Creset %C(red)%C(bold)%s%Creset%n%C(yellow)%C(bold)%C(dim)%d%Creset %C(yellow)%cd (%cr) by %C(dim)%cn%Creset" --all --full-history -G$regex -- $file
 fi &&\
-printf ${TERMINAL_DEFAULT_COLOR:2:-2}
+printf $TERMINAL_DEFAULT_COLOR
