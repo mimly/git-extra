@@ -14,15 +14,15 @@ else
     exit 1
 fi
 
-if [[ $revision -lt 1 || `totalNumberOfCommits HEAD` -le 1 || $revision -ge `totalNumberOfCommits HEAD` || `isInvalidDate "$date"` ]] ; then
+if [[ $revision -lt 1 || $(totalNumberOfCommits HEAD) -le 1 || $revision -ge $(totalNumberOfCommits HEAD) ]] || ( [[ -n $date ]] && ! isValidDate "$date" ) ; then
     printf "USAGE: git rename <revision> <message> [<date=then>]\n"
     exit 1
 fi
 
 if [[ -z $date ]] ; then
-    git join 1 "$message" $revision 2>&1 >/dev/null
+    git join 1 "$message" "$revision" >/dev/null 2>&1
 else
-    git join 1 "$message" $revision "$date" 2>&1 >/dev/null
+    git join 1 "$message" "$revision" "$date" >/dev/null 2>&1
 fi &&\
-printf "\n\n* * * #%d REVISION RENAMED AS \"%s\" * * *\n\n" $revision "$message" &&\
-git logs $revision
+printf "\n\n* * * #%d REVISION RENAMED AS \"%s\" * * *\n\n" "$revision" "$message" &&\
+git logs "$revision"

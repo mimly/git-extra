@@ -25,7 +25,7 @@ else
     exit 1
 fi
 
-if [[ $numberOfRevisions -lt 1 || $numberOfRevisions -gt $(( `totalNumberOfCommits HEAD` - $from )) ]] ; then
+if [[ $numberOfRevisions -lt 1 || $numberOfRevisions -gt $(( $(totalNumberOfCommits HEAD) - from )) ]] ; then
     printf "USAGE: git join <numberOfRevisions> <message> [<from=1>] [<date=then>]\n"
     exit 1
 fi
@@ -33,23 +33,23 @@ fi
 declare -a commitMessages &&\
 declare -a commitDates &&\
 
-for (( i = 0; i < $from - 1; ++i )) ; do
-    commitMessages[$i]=`commitMessage HEAD` &&\
-    commitDates[$i]=`commitDate HEAD` &&\
+for (( i = 0; i < from - 1; ++i )) ; do
+    commitMessages[$i]=$(commitMessage HEAD) &&\
+    commitDates[$i]=$(commitDate HEAD) &&\
     git reset --soft HEAD~1 &&\
     git stash
 done &&\
 
 if [[ -z $date ]] ; then
-    date=`commitDate HEAD`
+    date=$(commitDate HEAD)
 fi &&\
 
-git reset --soft HEAD~$numberOfRevisions &&\
+git reset --soft HEAD~"$numberOfRevisions" &&\
 git revision "$message" "$date" &&\
 
-for (( i = $from - 2; i >= 0; --i )) ; do
+for (( i = from - 2; i >= 0; --i )) ; do
     git stash pop &&\
     git revision "${commitMessages[$i]}" "${commitDates[$i]}"
 done &&\
 
-printf "* * * THE %d LAST REVISIONS (FROM %d) JOINED * * *\n\n" $numberOfRevisions $from
+printf "* * * THE LAST %d REVISIONS (FROM %d) JOINED * * *\n\n" "$numberOfRevisions" "$from"
