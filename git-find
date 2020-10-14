@@ -23,6 +23,7 @@ printf "* * * %s MODIFIED BY THE FOLLOWING REVISION(S): * * *\n\n" "$text"
 if [[ $# -eq 3 ]] ; then
     git log --abbrev-commit --abbrev=12 --date=format:"%Y-%m-%d %H:%M:%S" --pretty=format:"%C(cyan)%h%Creset %C(red)%C(bold)%s%Creset%n%C(yellow)%C(bold)%C(dim)%d%Creset %C(yellow)%cd (%cr) by %C(dim)%cn%Creset" --reverse -L"$firstLine","$lastLine":"$file"
 else
+    # shellcheck disable=SC2086
     git log --abbrev-commit --abbrev=12 --date=format:"%Y-%m-%d %H:%M:%S" --pretty=format:"%C(cyan)%h%Creset %C(red)%C(bold)%s%Creset%n%C(yellow)%C(bold)%C(dim)%d%Creset %C(yellow)%cd (%cr) by %C(dim)%cn%Creset" --all --full-history -G"$regex" -- $file
 fi &&\
 printf "%s" "$TERMINAL_DEFAULT_COLOR"
