@@ -22,9 +22,9 @@ gitCommitInfo() {
     if isGitRepo ; then
         local hash
         local hashColor=230
-        hash=$(commitHash 1 2>/dev/null)
+        hash=$(commitHash HEAD)
         local message
-        message=$(commitMessage "$hash" 2>/dev/null)
+        message=$(commitMessage HEAD)
 
         # Shorten hash and message if too long
         hash="${hash:0:4}"
@@ -35,7 +35,7 @@ gitCommitInfo() {
         local status
         local statusColor
         local gitStatus
-        gitStatus=$(git status --porcelain 2>/dev/null)
+        gitStatus=$(git status --porcelain)
         if [[ -z $gitStatus ]] ; then
             status="✔"
             statusColor=46
@@ -119,28 +119,19 @@ isGitRepo() {
 hasAnySubmodules() {
     local submodules
     submodules=$(git config --file .gitmodules --get-regexp path)
-    if [[ -n $submodules ]] ; then
-        return 0
-    fi
-    return 1
+    [[ -n $submodules ]]
 }
 
 isRemoteSetUp() {
     local remote
     remote=$(git remote -v 2>/dev/null)
-    if [[ -n $remote ]] ; then
-        return 0
-    fi
-    return 1
+    [[ -n $remote ]]
 }
 
 isPushed() {
     local branch
     branch=$(branch 2>/dev/null)
-    if [[ $(git rev-parse "$branch" 2>/dev/null) == $(git rev-parse origin/"$branch" 2>/dev/null) ]] ; then
-        return 0
-    fi
-    return 1
+    [[ $(commitHash "$branch") == $(commitHash "origin/$branch") ]]
 }
 
 branch() {
@@ -149,23 +140,33 @@ branch() {
 
 isValidDate() {
     local date=$1
-    date "+%FT%T" -d "$date" >/dev/null 2>&1
-    local isValidDate=$?
-    [[ $isValidDate -eq 0 && ${#date} -eq 19 ]]
+    date +%Y-%m-%dT%H:%M:%S --date="$date" >/dev/null 2>&1 && [[ $date =~ ^.{10}T.{8}$ ]]
 }
 
 totalNumberOfCommits() {
-    git rev-list --count "$1"
+    git rev-list --count "$1" 2>/dev/null
+}
+
+isValidCommit() {
+    commitHash "$1" >/dev/null 2>&1
 }
 
 commitHash() {
-    git rev-parse HEAD~$(( $1 - 1 ))
+    if [[ $1 =~ ^[1-9][0-9]*$ && $1 -le $(totalNumberOfCommits HEAD) ]] ; then
+        git rev-parse --verify --quiet HEAD~$(( $1 - 1 )) 2>/dev/null
+    else
+        git rev-parse --verify --quiet "$1" 2>/dev/null
+    fi
 }
 
 commitMessage() {
-    git rev-list --format=%s --max-count=1 "$1" | awk '{if (NR == 2) { print $0 }}'
+    git rev-list --format=%s --max-count=1 "$(commitHash "$1")" 2>/dev/null | awk '{if (NR == 2) { print $0 }}'
 }
 
 commitDate() {
-    git rev-list --format=%ci --max-count=1 "$1" | awk '{if (NR == 2) { print $0 }}'
+    local commitDate
+    commitDate=$(git rev-list --format=%ci --max-count=1 "$(commitHash "$1")" 2>/dev/null | awk '{if (NR == 2) { print $0 }}')
+    if [[ -n $commitDate ]] ; then
+        date +%Y-%m-%dT%H:%M:%S --date="$commitDate"
+    fi
 }

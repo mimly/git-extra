@@ -1,22 +1,118 @@
 #!/bin/bash
 
-source fs4git.sh
+# shellcheck disable=SC1091,SC2034
 
-if [[ $# -eq 0 ]] ; then
-    git add -A
-elif [[ $# -ge 1 ]] ; then
-    if isValidDate "$1" >/dev/null 2>&1 ; then
-        export GIT_AUTHOR_DATE=$1
-        export GIT_COMMITTER_DATE=$1
-        git add -A
+set -o errexit
+set -o nounset
+set -o pipefail
+
+. bash_template.sh
+. fs4git.sh
+
+SCRIPT_NAME=$(basename "${0}")
+SCRIPT_VERSION="0.0.1"
+SCRIPT_AUTHOR="mimly"
+SCRIPT_GIT="https://github.com/mimly"
+SCRIPT_LICENSE="MIT"
+SCRIPT_DESCRIPTION="update current revision"
+SCRIPT_ARGUMENTS="[OPTION]... [FILE]..."
+SCRIPT_OPTIONS=(\
+    "-d DATE, --date=DATE"\
+    "-m MESSAGE, --message=MESSAGE"\
+    "-v, --verbose"\
+    "--help"\
+    "--version"\
+)
+SCRIPT_OPTION_DESCRIPTIONS=(\
+    "date format is YYYY-mm-ddTHH:MM:SS"\
+    ""\
+    "explain what is being done"\
+    "display this help and exit"\
+    "output version information and exit"\
+)
+SCRIPT_EXAMPLES=(\
+    ""\
+)
+
+### D E F A U L T   V A L U E S ###
+ORIGIN_HASH=$(commitHash HEAD)
+MESSAGE=$(commitMessage HEAD)
+
+# We use "$@" instead of $* to preserve argument-boundary information
+# Add : to suppress getopt error messages, i.e. getopt -o ':...'
+ARGS=$(getopt -o 'd:m:v' --long 'date:,message:,verbose,help,version,update-manual' -- "$@") || { usage ; exit 1 ; }
+eval "set -- $ARGS"
+
+while true; do
+    case $1 in
+        (-d|--date)
+            isValidDate "$2" || { error "date format is YYYY-mm-ddTHH:MM:SS" ; usage ; exit 1 ; }
+            export GIT_AUTHOR_DATE=$2
+            export GIT_COMMITTER_DATE=$2
+            shift 2 ;;
+        (-m|--message)
+            MESSAGE=$2 ; shift 2 ;;
+        (-v|--verbose)
+            VERBOSE= ; shift ;;
+        (--help)
+            usageFull ; exit 0 ;;
+        (--version)
+            about ; changelog ; exit 0 ;;
+        (--update-manual) # hidden option
+            updateManual ; exit 0 ;;
+        (--)
+            shift ; break ;;
+        (*)
+            usage ; exit 1 ;;
+    esac
+done
+
+REMAINING_ARGS=("$@")
+
+main() {
+    if [[ -z ${VERBOSE+set} ]] ; then
+        exec 3>&1 4>&2 1>/dev/null 2>&1
+    fi &&\
+
+    FILE=("${REMAINING_ARGS[@]}") &&\
+    if [[ -n ${FILE[*]} ]] ; then
+        git add -- "${FILE[@]}" || { error "file does not exist" ; return 1 ; }
     else
-        git add "$@" || exit 1 # file not exist
-    fi
-else
-    printf "USAGE: git save [<date=now>] OR git save [<file(s)=all>]\n"
-    exit 1
-fi
+        git add -A
+    fi &&\
 
-git commit -S -s --reset-author --amend --no-edit &&\
-printf "\n\n* * * LAST REVISION UPDATED * * *\n\n" &&\
-git logs 1
+    git commit -S -s -m "$MESSAGE" --reset-author --amend --no-edit &&\
+
+    if [[ -z ${VERBOSE+set} ]] ; then
+        exec 1>&3 2>&4
+    fi &&\
+
+    printf "%s\n" "$(git logs --hash "$ORIGIN_HASH")"
+    printf "* * * LAST REVISION UPDATED AS FOLLOWS * * *\n\n" &&\
+    git logs --hash HEAD
+}
+
+recover() {
+    export GIT_AUTHOR_DATE=
+    export GIT_COMMITTER_DATE=
+
+    local REFLOG_HEAD
+    REFLOG_HEAD=$(git reflog | grep "${ORIGIN_HASH:0:6}" | head -1 | awk '{ print substr($2, 0, length($2) - 1) }')
+    git reset "$REFLOG_HEAD" --
+
+    if [[ -n ${FILE[*]} ]] ; then
+        git restore --staged -- "${FILE[@]}" || { error "file does not exist" ; }
+    else
+        git restore --staged -- .
+    fi
+
+    if [[ -z ${VERBOSE+set} ]] ; then
+        exec 1>&3 2>&4
+    fi
+
+    error "recovered at $ORIGIN_HASH" ; usage ; exit 1
+}
+
+trap recover SIGINT
+
+main || recover

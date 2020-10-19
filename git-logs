@@ -1,19 +1,95 @@
 #!/bin/bash
 
-source fs4git.sh
+# shellcheck disable=SC1091,SC2034
 
-if [[ $# -eq 0 ]] ; then
-    :
-elif [[ $# -eq 1 && $1 -ge 1 && $1 -lt $(totalNumberOfCommits HEAD) ]] ; then
-    specificLog=$1
-else
-    printf "USAGE: git logs [<specificLog>]\n"
-    exit 1
-fi
+set -o errexit
+set -o nounset
+set -o pipefail
 
-if [[ -z $specificLog ]] ; then
-    git log --abbrev-commit --abbrev=12 --date=format:"%Y-%m-%d %H:%M:%S" --pretty=format:"%C(yellow)%h%Creset %C(red)%C(bold)%s%Creset%n%C(cyan)%C(bold)%d%Creset %C(cyan)%cd (%cr) by %C(dim)%cn%Creset"
-else
-    git log --abbrev-commit --abbrev=12 --date=format:"%Y-%m-%d %H:%M:%S" --pretty=format:"%C(yellow)%h%Creset %C(red)%C(bold)%s%Creset%n%C(cyan)%C(bold)%d%Creset %C(cyan)%cd (%cr) by %C(dim)%cn%Creset" HEAD~"$specificLog"..HEAD~$((specificLog - 1))
-fi &&\
-printf "%s" "$TERMINAL_DEFAULT_COLOR"
+. bash_template.sh
+. fs4git.sh
+
+SCRIPT_NAME=$(basename "${0}")
+SCRIPT_VERSION="0.0.1"
+SCRIPT_AUTHOR="mimly"
+SCRIPT_GIT="https://github.com/mimly"
+SCRIPT_LICENSE="MIT"
+SCRIPT_DESCRIPTION="show logs in custom format"
+SCRIPT_ARGUMENTS="[OPTION]... [FILE]..."
+SCRIPT_OPTIONS=(\
+    "-g, --graph"\
+    "-h HASH, --hash=HASH"\
+    "-n NUMBER, --number=NUMBER"\
+    "--help"\
+    "--version"\
+)
+SCRIPT_OPTION_DESCRIPTIONS=(\
+    "show graph of logs"\
+    "show log with given hash"\
+    "show n:th log, the newest first"\
+    "display this help and exit"\
+    "output version information and exit"\
+)
+SCRIPT_EXAMPLES=(\
+    ""\
+)
+
+### D E F A U L T   V A L U E S ###
+ORIGIN_HASH=$(commitHash HEAD)
+
+# We use "$@" instead of $* to preserve argument-boundary information
+# Add : to suppress getopt error messages, i.e. getopt -o ':...'
+ARGS=$(getopt -o 'gh:n:' --long 'graph,hash:,number:,help,version,update-manual' -- "$@") || { usage ; exit 1 ; }
+eval "set -- $ARGS"
+
+while true; do
+    case $1 in
+        (-g|--graph)
+            GRAPH= ; shift ;;
+        (-h|--hash)
+            HASH=$(commitHash "$2") || { error "revision does not exist" ; usage ; exit 1 ; }
+            shift 2 ;;
+        (-n|--number)
+            HASH=$(commitHash "$2") || { error "revision does not exist" ; usage ; exit 1 ; }
+            shift 2 ;;
+        (--help)
+            usageFull ; exit 0 ;;
+        (--version)
+            about ; changelog ; exit 0 ;;
+        (--update-manual) # hidden option
+            updateManual ; exit 0 ;;
+        (--)
+            shift ; break ;;
+        (*)
+            usage ; exit 1 ;;
+    esac
+done
+
+REMAINING_ARGS=("$@")
+
+main() {
+    FILE=("${REMAINING_ARGS[@]}")
+
+    if [[ -n ${GRAPH+set} ]] ; then
+        git log --all --graph --decorate --oneline
+        exit 0
+    fi &&\
+
+    if [[ -n ${HASH-} ]] ; then
+        git log --abbrev-commit --abbrev=12 --date=format:"%Y-%m-%d %H:%M:%S" --pretty=format:"%C(yellow)%h%Creset %C(red)%C(bold)%s%Creset%n%C(cyan)%C(bold)%d%Creset %C(cyan)%cd (%cr) by %C(dim)%cn%Creset" --max-count 1 "$HASH"
+        printf "%s" "$TERMINAL_DEFAULT_COLOR"
+        exit 0
+    fi &&\
+
+    git log --abbrev-commit --abbrev=12 --date=format:"%Y-%m-%d %H:%M:%S" --pretty=format:"%C(yellow)%h%Creset %C(red)%C(bold)%s%Creset%n%C(cyan)%C(bold)%d%Creset %C(cyan)%cd (%cr) by %C(dim)%cn%Creset" -- "${FILE[@]}" &&\
+    printf "%s" "$TERMINAL_DEFAULT_COLOR"
+}
+
+recover() {
+    printf "%s" "$TERMINAL_DEFAULT_COLOR"
+    error "recovered at $ORIGIN_HASH" ; usage ; exit 1
+}
+
+trap recover SIGINT
+
+main || recover
