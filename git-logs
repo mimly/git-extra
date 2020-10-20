@@ -20,6 +20,8 @@ SCRIPT_OPTIONS=(\
     "-g, --graph"\
     "-h HASH, --hash=HASH"\
     "-n NUMBER, --number=NUMBER"\
+    "-G REGEX"\
+    "-L START,END:FILE, -L :FUNCNAME:FILE"\
     "--help"\
     "--version"\
 )
@@ -27,6 +29,8 @@ SCRIPT_OPTION_DESCRIPTIONS=(\
     "show graph of logs"\
     "show log with given hash"\
     "show n:th log, the newest first"\
+    ""\
+    ""\
     "display this help and exit"\
     "output version information and exit"\
 )
@@ -36,10 +40,16 @@ SCRIPT_EXAMPLES=(\
 
 ### D E F A U L T   V A L U E S ###
 ORIGIN_HASH=$(commitHash HEAD)
+FORMAT="%C(yellow)%h%Creset %C(red)%C(bold)%s%Creset%n%C(cyan)%C(bold)%d%Creset %C(cyan)%cd (%cr) by %C(dim)%cn%Creset"
+FORMAT_ALT="%C(cyan)%h%Creset %C(red)%C(bold)%s%Creset%n%C(yellow)%C(bold)%C(dim)%d%Creset %C(yellow)%cd (%cr) by %C(dim)%cn%Creset"
+
+GIT_LOG() {
+    git log --abbrev-commit --abbrev=12 --date=format:"%Y-%m-%d %H:%M:%S" "$@"
+}
 
 # We use "$@" instead of $* to preserve argument-boundary information
 # Add : to suppress getopt error messages, i.e. getopt -o ':...'
-ARGS=$(getopt -o 'gh:n:' --long 'graph,hash:,number:,help,version,update-manual' -- "$@") || { usage ; exit 1 ; }
+ARGS=$(getopt -o 'gh:n:G:L:' --long 'graph,hash:,number:,help,version,update-manual' -- "$@") || { usage ; exit 1 ; }
 eval "set -- $ARGS"
 
 while true; do
@@ -52,6 +62,10 @@ while true; do
         (-n|--number)
             HASH=$(commitHash "$2") || { error "revision does not exist" ; usage ; exit 1 ; }
             shift 2 ;;
+        (-G)
+            REGEX=$2 ; shift 2 ;;
+        (-L)
+            L=$2 ; exit 2 ;;
         (--help)
             usageFull ; exit 0 ;;
         (--version)
@@ -76,12 +90,30 @@ main() {
     fi &&\
 
     if [[ -n ${HASH-} ]] ; then
-        git log --abbrev-commit --abbrev=12 --date=format:"%Y-%m-%d %H:%M:%S" --pretty=format:"%C(yellow)%h%Creset %C(red)%C(bold)%s%Creset%n%C(cyan)%C(bold)%d%Creset %C(cyan)%cd (%cr) by %C(dim)%cn%Creset" --max-count 1 "$HASH"
+        GIT_LOG --pretty=format:"$FORMAT" --max-count 1 "$HASH"
         printf "%s" "$TERMINAL_DEFAULT_COLOR"
         exit 0
     fi &&\
 
-    git log --abbrev-commit --abbrev=12 --date=format:"%Y-%m-%d %H:%M:%S" --pretty=format:"%C(yellow)%h%Creset %C(red)%C(bold)%s%Creset%n%C(cyan)%C(bold)%d%Creset %C(cyan)%cd (%cr) by %C(dim)%cn%Creset" -- "${FILE[@]}" &&\
+    if [[ -n ${REGEX-} ]] ; then
+        printf "* * * MODIFIED BY THE FOLLOWING REVISION(S): * * *\n\n"
+        GIT_LOG --pretty=format:"$FORMAT_ALT" --all --full-history -G"$REGEX" -- "${FILE[@]}"
+        printf "%s" "$TERMINAL_DEFAULT_COLOR"
+        exit 0
+    fi &&\
+
+    if [[ -n ${L-} ]] ; then
+        printf "* * * MODIFIED BY THE FOLLOWING REVISION(S): * * *\n\n"
+        GIT_LOG --pretty=format:"$FORMAT_ALT" --reverse -L"$L"
+        printf "%s" "$TERMINAL_DEFAULT_COLOR"
+        exit 0
+    fi &&\
+
+    if [[ -n ${FILE[0]-} ]] ; then
+        printf "* * * MODIFIED BY THE FOLLOWING REVISION(S): * * *\n\n"
+    fi &&\
+
+    GIT_LOG --pretty=format:"$FORMAT" -- "${FILE[@]}" &&\
     printf "%s" "$TERMINAL_DEFAULT_COLOR"
 }
 
