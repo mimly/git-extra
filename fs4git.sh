@@ -1,6 +1,7 @@
 #!/bin/bash
 
 gitBranchInfo() {
+    local allCharacters=0
     local nonPrintableCharacters=0
 
     if isGitRepo ; then
@@ -9,14 +10,17 @@ gitBranchInfo() {
         local gitBranchInfo
         gitBranchInfo=$(colorize --fg-color 50 --fg-step 4 "on  $branch")
 
-        nonPrintableCharacters=$(( nonPrintableCharacters + $(cat ~/.non-printables) ))
+        allCharacters=$(( ${#gitBranchInfo} + 1 ))
+        nonPrintableCharacters=$(( nonPrintableCharacters + $(read -r -u 7 x ; echo "$x") ))
         printf "%s " "$gitBranchInfo"
     fi
 
-    echo $nonPrintableCharacters > ~/.non-printables
+    echo $allCharacters >&7
+    echo $nonPrintableCharacters >&7
 }
 
 gitCommitInfo() {
+    local allCharacters=0
     local nonPrintableCharacters=0
 
     if isGitRepo ; then
@@ -47,14 +51,17 @@ gitCommitInfo() {
         local gitCommitInfo
         gitCommitInfo=$(colorize --fg-custom-scheme 0:238,1:$hashColor,2:239,4:240,6:$statusColor,7:241,8:242,10:243,12:244,14:245,16:246,18:247,20:248,22:249,24:250,26:251 "[#$hash$status $message]")
 
-        nonPrintableCharacters=$(( nonPrintableCharacters + $(cat ~/.non-printables) ))
+        allCharacters=$(( ${#gitCommitInfo} + 1 ))
+        nonPrintableCharacters=$(( nonPrintableCharacters + $(read -r -u 7 x ; echo "$x") ))
         printf "%s " "$gitCommitInfo"
     fi
 
-    echo $nonPrintableCharacters > ~/.non-printables
+    echo $allCharacters >&7
+    echo $nonPrintableCharacters >&7
 }
 
 gitPushInfo() {
+    local allCharacters=0
     local nonPrintableCharacters=0
 
     if isGitRepo && isRemoteSetUp && ! isPushed ; then
@@ -63,14 +70,17 @@ gitPushInfo() {
         local gitPushInfo
         gitPushInfo=$(colorize --fg-color 50 --fg-step 4 "➤ origin/$branch")
 
-        nonPrintableCharacters=$(( nonPrintableCharacters + $(cat ~/.non-printables) ))
+        allCharacters=$(( ${#gitPushInfo} + 1 ))
+        nonPrintableCharacters=$(( nonPrintableCharacters + $(read -r -u 7 x ; echo "$x") ))
         printf "%s " "$gitPushInfo"
     fi
 
-    echo $nonPrintableCharacters > ~/.non-printables
+    echo $allCharacters >&7
+    echo $nonPrintableCharacters >&7
 }
 
 gitSubmoduleInfo() {
+    local allCharacters=0
     local nonPrintableCharacters=0
 
     if isGitRepo && hasAnySubmodules ; then
@@ -80,7 +90,7 @@ gitSubmoduleInfo() {
         IFS=' ' read -ra submodulesArray <<< "$submodules"
         local gitSubmoduleInfo
         gitSubmoduleInfo=$(colorize --fg-color 238 --fg-color-step 1 "🡶 ")
-        nonPrintableCharacters=$(( nonPrintableCharacters + $(cat ~/.non-printables) ))
+        nonPrintableCharacters=$(( nonPrintableCharacters + $(read -r -u 7 x ; echo "$x") ))
         for (( i = 0; i < "${#submodulesArray[@]}"; ++i )) ; do
             local gitStatus
             gitStatus=$(git --git-dir "${submodulesArray[$i]}/.git" --work-tree "${submodulesArray[$i]}" status --porcelain 2>/dev/null)
@@ -91,25 +101,28 @@ gitSubmoduleInfo() {
             fi
 
             gitSubmoduleInfo+=$(colorize --fg-color "$color" --fg-color-step 1 "${submodulesArray[$i]}")
-            nonPrintableCharacters=$(( nonPrintableCharacters + $(cat ~/.non-printables) ))
+            nonPrintableCharacters=$(( nonPrintableCharacters + $(read -r -u 7 x ; echo "$x") ))
 
             if [[ $i -ne $(( ${#submodulesArray[@]} - 1 )) ]] ; then
                 gitSubmoduleInfo+=$(colorize --fg-color "$(( 238 + i * 3 ))" --fg-color-step 1 "|")
-                nonPrintableCharacters=$(( nonPrintableCharacters + $(cat ~/.non-printables) ))
+                nonPrintableCharacters=$(( nonPrintableCharacters + $(read -r -u 7 x ; echo "$x") ))
             fi
         done
         gitSubmoduleInfo+=$(colorize --fg-color "$(( 238 + ( ${#submodulesArray[@]} - 1 ) * 3 ))" --fg-color-step 1 " 🡶")
-        nonPrintableCharacters=$(( nonPrintableCharacters + $(cat ~/.non-printables) ))
+        allCharacters=$(( ${#gitSubmoduleInfo} + 1 ))
+        nonPrintableCharacters=$(( nonPrintableCharacters + $(read -r -u 7 x ; echo "$x") ))
         printf "%s " "$gitSubmoduleInfo"
 
         # A little bit simpler approach
         #gitSubmoduleInfo=$(colorize --fg-color 238 --fg-color-step 1 "🡶 $(IFS='|' ; echo "${submodulesArray[*]}") 🡶")
 
-        #nonPrintableCharacters=$(( nonPrintableCharacters + $(cat ~/.non-printables) ))
+        #allCharacters=$(( ${#gitSubmoduleInfo} + 1 ))
+        #nonPrintableCharacters=$(( nonPrintableCharacters + $(read -r -u 7 x ; echo "$x") ))
         #printf "%s " "$gitSubmoduleInfo"
     fi
 
-    echo $nonPrintableCharacters > ~/.non-printables
+    echo $allCharacters >&7
+    echo $nonPrintableCharacters >&7
 }
 
 isGitRepo() {
