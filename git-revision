@@ -9,12 +9,8 @@ set -o pipefail
 . bash_template.sh
 . fs4git.sh
 
-SCRIPT_NAME=$(basename "${0}")
-SCRIPT_VERSION="0.0.1"
-SCRIPT_AUTHOR="mimly"
-SCRIPT_GIT="https://github.com/mimly"
-SCRIPT_LICENSE="MIT"
 SCRIPT_DESCRIPTION="make new revision"
+SCRIPT_FULL_DESCRIPTION="-"
 SCRIPT_ARGUMENTS="[OPTION]... MESSAGE [FILE]..."
 SCRIPT_OPTIONS=(\
     "-d DATE, --date=DATE"\
@@ -30,6 +26,12 @@ SCRIPT_OPTION_DESCRIPTIONS=(\
 )
 SCRIPT_EXAMPLES=(\
     "MESSAGE"\
+)
+SCRIPT_SEE_ALSO=(\
+    "git-join(1)"\
+    "git-logs(1)"\
+    "git-redate(1)"\
+    "git-save(1)"\
 )
 
 ### D E F A U L T   V A L U E S ###

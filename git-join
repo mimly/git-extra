@@ -9,12 +9,8 @@ set -o pipefail
 . bash_template.sh
 . fs4git.sh
 
-SCRIPT_NAME=$(basename "${0}")
-SCRIPT_VERSION="0.0.1"
-SCRIPT_AUTHOR="mimly"
-SCRIPT_GIT="https://github.com/mimly"
-SCRIPT_LICENSE="MIT"
 SCRIPT_DESCRIPTION="join revisions"
+SCRIPT_FULL_DESCRIPTION="-"
 SCRIPT_ARGUMENTS="[OPTION]... FROM..TO"
 SCRIPT_OPTIONS=(\
     "-d DATE, --date=DATE"\
@@ -32,6 +28,12 @@ SCRIPT_OPTION_DESCRIPTIONS=(\
 )
 SCRIPT_EXAMPLES=(\
     "2..4  # joins 2nd and 3rd revision with 2nd revisions date and message"\
+)
+SCRIPT_SEE_ALSO=(\
+    "git-logs(1)"\
+    "git-redate(1)"\
+    "git-revision(1)"\
+    "git-save(1)"\
 )
 
 ### D E F A U L T   V A L U E S ###
