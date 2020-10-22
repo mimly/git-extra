@@ -13,6 +13,8 @@ SCRIPT_DESCRIPTION="update current revision"
 SCRIPT_FULL_DESCRIPTION="-"
 SCRIPT_ARGUMENTS="[OPTION]... [FILE]..."
 SCRIPT_OPTIONS=(\
+    "--now"\
+    "--then"\
     "-d DATE, --date=DATE"\
     "-m MESSAGE, --message=MESSAGE"\
     "-v, --verbose"\
@@ -20,6 +22,9 @@ SCRIPT_OPTIONS=(\
     "--version"\
 )
 SCRIPT_OPTION_DESCRIPTIONS=(\
+    "current date, default"\
+    "last revision date"\
+    "date format is YYYY-mm-ddTHH:MM:SS"\
     "date format is YYYY-mm-ddTHH:MM:SS"\
     ""\
     "explain what is being done"\
@@ -38,20 +43,21 @@ SCRIPT_SEE_ALSO=(\
 
 ### D E F A U L T   V A L U E S ###
 ORIGIN_HASH=$(commitHash HEAD)
-MESSAGE=$(commitMessage HEAD)
 
 # We use "$@" instead of $* to preserve argument-boundary information
 # Add : to suppress getopt error messages, i.e. getopt -o ':...'
-ARGS=$(getopt -o 'd:m:v' --long 'date:,message:,verbose,help,version,update-manual' -- "$@") || { usage ; exit 1 ; }
+ARGS=$(getopt -o 'd:m:v' --long 'now,then,date:,message:,verbose,help,version,update-manual' -- "$@") || { usage ; exit 1 ; }
 eval "set -- $ARGS"
 
 while true; do
     case $1 in
+        (--now)
+            DATE=$(date +%Y-%m-%dT%H:%M:%S --date now) ; shift ;;
+        (--then)
+            DATE=$(commitDate HEAD) ; shift ;;
         (-d|--date)
             isValidDate "$2" || { error "date format is YYYY-mm-ddTHH:MM:SS" ; usage ; exit 1 ; }
-            export GIT_AUTHOR_DATE=$2
-            export GIT_COMMITTER_DATE=$2
-            shift 2 ;;
+            DATE=$2 ; shift 2 ;;
         (-m|--message)
             MESSAGE=$2 ; shift 2 ;;
         (-v|--verbose)
@@ -83,7 +89,9 @@ main() {
         git add -A
     fi &&\
 
-    git commit -S -s -m "$MESSAGE" --reset-author --amend --no-edit &&\
+    export GIT_AUTHOR_DATE=${DATE-$(date +%Y-%m-%dT%H:%M:%S --date now)} &&\
+    export GIT_COMMITTER_DATE=${DATE-$(date +%Y-%m-%dT%H:%M:%S --date now)} &&\
+    git commit -S -s -m "${MESSAGE-$(commitMessage "$ORIGIN_HASH")}" --reset-author --amend --no-edit &&\
 
     if [[ -z ${VERBOSE+set} ]] ; then
         exec 1>&3 2>&4
