@@ -42,8 +42,7 @@ SCRIPT_SEE_ALSO=(\
 
 ### D E F A U L T   V A L U E S ###
 ORIGIN_HASH=$(commitHash HEAD)
-FORMAT="%C(yellow)%h%Creset %C(red)%C(bold)%s%Creset%n%C(cyan)%C(bold)%d%Creset %C(cyan)%cd (%cr) by %C(dim)%cn%Creset"
-FORMAT_ALT="%C(cyan)%h%Creset %C(red)%C(bold)%s%Creset%n%C(yellow)%C(bold)%C(dim)%d%Creset %C(yellow)%cd (%cr) by %C(dim)%cn%Creset"
+FORMAT="%C(yellow)%C(bold)%C(dim)%C(italic)%h%Creset %C(yellow)%C(bold)%s%Creset%n%C(cyan)%C(bold)%d%Creset %C(cyan)%cd (%cr) by %C(dim)%C(italic)%cn%Creset%n %C(cyan)%C(dim)%C(italic)%(trailers:key=Signed-off-by)%Creset"
 
 GIT_LOG() {
     git log --abbrev-commit --abbrev=12 --date=format:"%Y-%m-%d %H:%M:%S" "$@"
@@ -99,14 +98,14 @@ main() {
 
     if [[ -n ${REGEX-} ]] ; then
         printf "* * * MODIFIED BY THE FOLLOWING REVISION(S): * * *\n\n"
-        GIT_LOG --pretty=format:"$FORMAT_ALT" --all --full-history -G"$REGEX" -- "${FILE[@]}"
+        GIT_LOG --pretty=format:"$FORMAT" --all --full-history -G"$REGEX" -- "${FILE[@]}"
         printf "%s" "$TERMINAL_DEFAULT_COLOR"
         exit 0
     fi &&\
 
     if [[ -n ${L-} ]] ; then
         printf "* * * MODIFIED BY THE FOLLOWING REVISION(S): * * *\n\n"
-        GIT_LOG --pretty=format:"$FORMAT_ALT" --reverse -L"$L"
+        GIT_LOG --pretty=format:"$FORMAT" --reverse -L"$L"
         printf "%s" "$TERMINAL_DEFAULT_COLOR"
         exit 0
     fi &&\
