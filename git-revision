@@ -3,22 +3,28 @@
 # shellcheck disable=SC1091,SC2034
 
 set -o errexit
+set -o errtrace
 set -o nounset
 set -o pipefail
 
 . bash_template.sh
 . fs4git.sh
 
-SCRIPT_DESCRIPTION="make new revision"
+SCRIPT_VERSION="1.1.0"
+SCRIPT_DESCRIPTION="create new revision"
 SCRIPT_FULL_DESCRIPTION="-"
 SCRIPT_ARGUMENTS="[OPTION]... MESSAGE [FILE]..."
 SCRIPT_OPTIONS=(\
+    "--amend"\
+    "--no-auto-indexing"\
     "-d DATE, --date=DATE"\
     "-v, --verbose"\
     "--help"\
     "--version"\
 )
 SCRIPT_OPTION_DESCRIPTIONS=(\
+    ""\
+    ""\
     "date format is YYYY-mm-ddTHH:MM:SS"\
     "explain what is being done"\
     "display this help and exit"\
@@ -30,25 +36,28 @@ SCRIPT_EXAMPLES=(\
 SCRIPT_SEE_ALSO=(\
     "git-join(1)"\
     "git-logs(1)"\
-    "git-redate(1)"\
     "git-save(1)"\
 )
 
-### D E F A U L T   V A L U E S ###
-ORIGIN_HASH=$(commitHash HEAD || echo "no commits yet")
+# # #   D E F A U L T   V A L U E S   # # #
+ORIGIN_HASH=$(commitHash HEAD || { true; })
+ALL="--all"
+# # #   E N D   # # # # # # # # # # # # # #
 
 # We use "$@" instead of $* to preserve argument-boundary information
 # Add : to suppress getopt error messages, i.e. getopt -o ':...'
-ARGS=$(getopt -o 'd:v' --long 'date:,verbose,help,version,update-manual' -- "$@") || { usage ; exit 1 ; }
+ARGS=$(getopt -o 'd:v' --long 'amend,no-auto-indexing,date:,verbose,help,version,update-manual' -- "$@") || { usage ; exit 1 ; }
 eval "set -- $ARGS"
 
 while true; do
     case $1 in
+        (--amend)
+            AMEND="--reset-author --amend --no-edit" ; shift ;;
+        (--no-auto-indexing)
+            ALL= ; shift ;;
         (-d|--date)
             isValidDate "$2" || { error "date format is YYYY-mm-ddTHH:MM:SS" ; usage ; exit 1 ; }
-            export GIT_AUTHOR_DATE=$2
-            export GIT_COMMITTER_DATE=$2
-            shift 2 ;;
+            DATE=$2 ; shift 2 ;;
         (-v|--verbose)
             VERBOSE= ; shift ;;
         (--help)
@@ -66,54 +75,61 @@ done
 
 REMAINING_ARGS=("$@")
 
+# # #   H E L P   F U N C T I O N S   # # #
+originRevision() {
+    git reflog | grep "${ORIGIN_HASH:0:6}" | head -1 | awk '{ print substr($2, 0, length($2) - 1) }'
+}
+# # #   E N D   # # # # # # # # # # # # # #
+
 main() {
+    # ERRORS=()
+
     if [[ ${#REMAINING_ARGS[@]} -lt 1 ]] ; then
         error "required parameters not supplied" ; usage ; exit 1
     fi
-    local MESSAGE=${REMAINING_ARGS[0]}
 
     if [[ -z ${VERBOSE+set} ]] ; then
         exec 3>&1 4>&2 1>/dev/null 2>&1
-    fi &&\
+    fi
 
-    FILE=("${REMAINING_ARGS[@]:1}") &&\
-    if [[ -n ${FILE[*]} ]] ; then
-        git add -- "${FILE[@]}" || { error "file does not exist" ; return 1 ; }
-    else
-        git add -A
-    fi &&\
+    : "${DATE:=$(date +%Y-%m-%dT%H:%M:%S --date now)}"
+    : "${MESSAGE:=${REMAINING_ARGS[0]}}"
+    FILE=("${REMAINING_ARGS[@]:1}")
 
-    git commit -S -s -m "$MESSAGE" &&\
+    # shellcheck disable=SC2086
+    git add $ALL -- "${FILE[@]}" || { return 1 ; }
+
+    export GIT_AUTHOR_DATE=$DATE
+    export GIT_COMMITTER_DATE=$DATE
+    # shellcheck disable=SC2086
+    git commit --gpg-sign --signoff --message "$MESSAGE" ${AMEND:=} -- || { return 1 ; }
 
     if [[ -z ${VERBOSE+set} ]] ; then
         exec 1>&3 2>&4
-    fi &&\
+    fi
 
-    printf "* * * NEW REVISION DONE * * *\n\n" &&\
-    git logs --hash HEAD
+    printf "* * * NEW REVISION DONE * * *\n\n"
+    git logs --revision HEAD
 }
 
 recover() {
+    printf "\n\n* * *   R E C O V E R (git-revision)   * * *\n\n"
+
     export GIT_AUTHOR_DATE=
     export GIT_COMMITTER_DATE=
 
-    local REFLOG_HEAD
-    REFLOG_HEAD=$(git reflog | grep "${ORIGIN_HASH:0:6}" | head -1 | awk '{ print substr($2, 0, length($2) - 1) }')
-    git reset "$REFLOG_HEAD" --
-
-    if [[ -n ${FILE[*]} ]] ; then
-        git restore --staged -- "${FILE[@]}" || { error "file does not exist" ; }
-    else
-        git restore --staged -- .
-    fi
+    # reset the index, but not the working tree (i.e. the changed files are preserved but not marked for commit)
+    git reset "$(originRevision)" --
 
     if [[ -z ${VERBOSE+set} ]] ; then
         exec 1>&3 2>&4
     fi
 
+    # for ERROR_MESSAGE in "${ERRORS[@]}" ; do
+    #     error "$ERROR_MESSAGE"
+    # done
     error "recovered at $ORIGIN_HASH" ; usage ; exit 1
+
 }
 
-trap recover SIGINT
-
-main || recover
+trap recover SIGINT ERR && main

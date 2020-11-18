@@ -49,7 +49,7 @@ gitCommitInfo() {
         fi
 
         local gitCommitInfo
-        gitCommitInfo=$(colorize --fg-custom-scheme 0:238,1:$hashColor,2:239,4:240,6:$statusColor,7:241,8:242,10:243,12:244,14:245,16:246,18:247,20:248,22:249,24:250,26:251 "[#$hash$status $message]")
+        gitCommitInfo=$(colorize --fg-style 3 --fg-custom-scheme 0:238,1:$hashColor,2:239,4:240,6:$statusColor,7:241,8:242,10:243,12:244,14:245,16:246,18:247,20:248,22:249,24:250,26:251 "[#$hash$status $message]")
 
         allCharacters=$(( ${#gitCommitInfo} + 1 ))
         nonPrintableCharacters=$(( nonPrintableCharacters + $(read -r -u 7 x ; echo "$x") ))
@@ -157,7 +157,21 @@ isValidDate() {
 }
 
 totalNumberOfCommits() {
-    git rev-list --count "$1" 2>/dev/null
+    local REVISION
+    REVISION=$(commitHash "$1")
+    git rev-list --count "${REVISION:-0}" 2>/dev/null
+}
+
+numberOfCommitsBetween() {
+    local FROM TO NUMBER
+    FROM=$(commitHash "$1")
+    TO=$(commitHash "$2")
+    NUMBER=$(git rev-list --count "${FROM:-0}..${TO:-0}" 2>/dev/null)
+    if [[ $NUMBER -eq 0 ]] ; then
+        git rev-list --count "${TO:-0}..${FROM:-0}" 2>/dev/null
+    else
+        echo "$NUMBER"
+    fi
 }
 
 isValidCommit() {
@@ -170,6 +184,10 @@ commitHash() {
     else
         git rev-parse --verify --quiet "$1" 2>/dev/null
     fi
+}
+
+commitNumber() {
+    git rev-list --count HEAD~$(( $(totalNumberOfCommits "$(commitHash "$1")") - 1 )) 2>/dev/null
 }
 
 commitMessage() {

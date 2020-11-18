@@ -19,6 +19,8 @@
     eol = native
 [gpg]
     program = gpg2
+[init]
+    defaultBranch = master
 [user]
     email = m.j.mlynczak@gmail.com
     name = mimly

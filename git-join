@@ -3,25 +3,35 @@
 # shellcheck disable=SC1091,SC2034
 
 set -o errexit
+set -o errtrace
 set -o nounset
 set -o pipefail
 
 . bash_template.sh
 . fs4git.sh
 
-SCRIPT_DESCRIPTION="join revisions"
+SCRIPT_VERSION="1.1.0"
+SCRIPT_DESCRIPTION="join range of revisions"
 SCRIPT_FULL_DESCRIPTION="-"
-SCRIPT_ARGUMENTS="[OPTION]... FROM..TO"
+SCRIPT_ARGUMENTS="[OPTION]... [FILE]..."
 SCRIPT_OPTIONS=(\
+    "--latest"\
+    "--oldest"\
     "-d DATE, --date=DATE"\
     "-m MESSAGE, --message=MESSAGE"\
+    "-f FROM, --from=FROM"\
+    "-t TO, --to=TO"\
     "-v, --verbose"\
     "--help"\
     "--version"\
 )
 SCRIPT_OPTION_DESCRIPTIONS=(\
+    "latest revision date, default"\
+    "oldest revision date"\
     "date format is YYYY-MM-DDThh:mm:ss"\
     ""\
+    "first revision (incl.)"\
+    "last revision (excl.)"\
     "explain what is being done"\
     "display this help and exit"\
     "output version information and exit"\
@@ -31,26 +41,39 @@ SCRIPT_EXAMPLES=(\
 )
 SCRIPT_SEE_ALSO=(\
     "git-logs(1)"\
-    "git-redate(1)"\
     "git-revision(1)"\
     "git-save(1)"\
 )
 
-### D E F A U L T   V A L U E S ###
-ORIGIN_HASH=$(commitHash HEAD)
+# # #   D E F A U L T   V A L U E S   # # #
+ORIGIN_HASH=$(commitHash HEAD || { true; })
+# # #   E N D   # # # # # # # # # # # # # #
 
 # We use "$@" instead of $* to preserve argument-boundary information
 # Add : to suppress getopt error messages, i.e. getopt -o ':...'
-ARGS=$(getopt -o 'd:m:v' --long 'date:,message:,verbose,help,version,update-manual' -- "$@") || { usage ; exit 1 ; }
+ARGS=$(getopt -o 'd:m:f:t:v' --long 'latest,oldest,date:,message:,from:,to:,verbose,help,version,update-manual' -- "$@") || { usage ; exit 1 ; }
 eval "set -- $ARGS"
 
 while true; do
     case $1 in
+        (--latest)
+            [[ -z "${DATE:+date}" ]] || { error "date already selected" ; usage ; exit 1 ; }
+            DATE="LATEST" ; shift ;;
+        (--oldest)
+            [[ -z "${DATE:+date}" ]] || { error "date already selected" ; usage ; exit 1 ; }
+            DATE="OLDEST" ; shift ;;
         (-d|--date)
+            [[ -z "${DATE:+date}" ]] || { error "date already selected" ; usage ; exit 1 ; }
             isValidDate "$2" || { error "date format is YYYY-mm-ddTHH:MM:SS" ; usage ; exit 1 ; }
             DATE=$2 ; shift 2 ;;
         (-m|--message)
             MESSAGE=$2 ; shift 2 ;;
+        (-f|--from)
+            isValidCommit "$2" || { error "revision does not exist" ; usage ; exit 1 ; }
+            FROM=$(commitNumber "$2") ; FROM_HASH=$(commitHash "$FROM") ; shift 2 ;;
+        (-t|--to)
+            isValidCommit "$2" || { error "revision does not exist" ; usage ; exit 1 ; }
+            TO=$(commitNumber "$2") ; TO_HASH=$(commitHash "$TO") ; shift 2 ;;
         (-v|--verbose)
             VERBOSE= ; shift ;;
         (--help)
@@ -68,81 +91,94 @@ done
 
 REMAINING_ARGS=("$@")
 
-main() {
-    if [[ ${#REMAINING_ARGS[@]} -ne 1 ]] ; then
-        error "required parameters not supplied" ; usage ; exit 1
-    fi
+# # #   H E L P   F U N C T I O N S   # # #
+originRevision() {
+    git reflog | grep "${ORIGIN_HASH:0:6}" | head -1 | awk '{ print substr($2, 0, length($2) - 1) }'
+}
+# # #   E N D   # # # # # # # # # # # # # #
 
-    local FT
-    IFS='..' read -ra FT <<< "${REMAINING_ARGS[0]}"
-    if [[ ${#FT[@]} -ne 3 || ! "${FT[0]}" =~ ^[1-9][0-9]*$ || ! "${FT[2]}" =~ ^[1-9][0-9]*$ ]] ; then
-        error "only positive integers" ; usage ; exit 1
-    fi
-    local FROM=${FT[0]}
-    local TO=${FT[2]}
-    local NUMBER_OF_REVISIONS=$(( TO - FROM ))
+main() {
+    # ERRORS=()
+
+    local NUMBER_OF_REVISIONS
+    NUMBER_OF_REVISIONS=$(numberOfCommitsBetween "$FROM" "$TO")
     if [[ $NUMBER_OF_REVISIONS -lt 1 || $NUMBER_OF_REVISIONS -gt $(( $(totalNumberOfCommits HEAD) - FROM )) ]] ; then
         error "wrong revision range" ; usage ; exit 1
     fi
 
     local JOINED_REVISIONS=()
-    for HASH in $(git rev-list --abbrev-commit HEAD~$(( TO - 1 ))..HEAD~$(( FROM - 1 ))) ; do
-        JOINED_REVISIONS+=("$(git logs --hash "$HASH")")
+    for HASH in $(git rev-list --abbrev-commit "$TO_HASH".."$FROM_HASH") ; do
+        JOINED_REVISIONS+=("$(git logs --revision "$HASH")")
     done
 
     if [[ -z ${VERBOSE+set} ]] ; then
         exec 3>&1 4>&2 1>/dev/null 2>&1
-    fi &&\
+    fi
 
-    local COMMIT_MESSAGES=() &&\
-    local COMMIT_DATES=() &&\
-    STASHES=0 &&\ # GLOBAL VARIABLE
-    for (( i = 0; i < FROM - 1; ++i )) ; do
-        COMMIT_MESSAGES[$i]=$(commitMessage HEAD) &&\
-        COMMIT_DATES[$i]=$(commitDate HEAD) &&\
-        git reset --soft HEAD~1 &&\
-        git stash && STASHES=$(( STASHES + 1 ))
-    done &&\
+    case ${DATE:-date} in
+        ("LATEST") # default
+            DATE=$(commitDate "$FROM") ;
+            : "${MESSAGE:=$(commitMessage "$FROM")}" ;;
+        ("OLDEST")
+            DATE=$(commitDate "$(( TO - 1 ))") ;
+            : "${MESSAGE:=$(commitMessage "$(( TO - 1))")}" ;;
+        (*) # default, custom date supplied
+            : "${DATE:=$(commitDate "$FROM")}"
+            : "${MESSAGE:=$(commitMessage "$FROM")}" ;;
+    esac
+    FILE=("${REMAINING_ARGS[@]}")
+    local QUOTED_FILE
+    QUOTED_FILE=${FILE[*]@Q}
 
-    : "${DATE:="$(commitDate HEAD)"}" &&\
-    : "${MESSAGE:="$(commitMessage HEAD)"}" &&\
-
-    git reset --soft HEAD~"$NUMBER_OF_REVISIONS" &&\
-    git revision --date "$DATE" "$MESSAGE" &&\
-
-    for (( i = FROM - 2; i >= 0; --i )) ; do
-        git stash pop && STASHES=$(( STASHES - 1 )) &&\
-        git revision --date "${COMMIT_DATES[$i]}" "${COMMIT_MESSAGES[$i]}"
-    done &&\
+    export GIT_SEQUENCE_EDITOR
+    GIT_SEQUENCE_EDITOR="sed -i "
+    local D
+    D=$(( TO - FROM ))
+    case $D in
+        (1)
+            ;;
+        (*) # more than one commit
+            GIT_SEQUENCE_EDITOR+="-e '2,$D{s/^pick/fixup/}' "
+            ;;
+    esac
+    GIT_SEQUENCE_EDITOR+="-e '${D}a exec git stash pop ; git revision --verbose --amend --date \"$DATE\" \"$MESSAGE\" ${QUOTED_FILE//\'/\"} || { git stash push ; exit 1 ; } ; git stash push' "
+    # preserve dates for all (latest) commits before FROM commit
+    for HASH in $(git rev-list --abbrev-commit --reverse "$FROM_HASH"..HEAD) ; do
+        GIT_SEQUENCE_EDITOR+="-e '$(( ++D ))a exec git revision --verbose --amend --date $(commitDate "$HASH") \"$(commitMessage "$HASH")\" || { exit 1 ; }' "
+    done
+    git stash push # cannot rebase due to unstaged changes
+    git rebase -i "$TO_HASH"
+    git stash pop || { true; } # returns 1 if no stash entries found
 
     if [[ -z ${VERBOSE+set} ]] ; then
         exec 1>&3 2>&4
-    fi &&\
+    fi
 
     for REVISION in "${JOINED_REVISIONS[@]}" ; do
         printf "%s\n" "$REVISION"
     done
-    printf "* * * REVISIONS JOINED AS FOLLOWS: * * *\n\n" &&\
-    git logs --number "$FROM"
+    printf "* * * REVISIONS JOINED AS FOLLOWS: * * *\n\n"
+    git logs --revision "$FROM"
 }
 
 recover() {
-    for (( i = 0 ; i < STASHES; ++i )) {
-        git stash pop
-    }
+    printf "\n\n* * *   R E C O V E R (git-join)   * * *\n\n"
 
-    local REFLOG_HEAD
-    REFLOG_HEAD=$(git reflog | grep "${ORIGIN_HASH:0:6}" | head -1 | awk '{ print substr($2, 0, length($2) - 1) }')
-    : "${STASHES:=0}"
-    git reset "$REFLOG_HEAD" --
+    git rebase --abort
+
+    git stash pop
+
+    # reset the index, but not the working tree (i.e. the changed files are preserved but not marked for commit)
+    git reset "$(originRevision)" --
 
     if [[ -z ${VERBOSE+set} ]] ; then
         exec 1>&3 2>&4
-    fi &&\
+    fi
 
+    # for ERROR_MESSAGE in "${ERRORS[@]}" ; do
+    #     error "$ERROR_MESSAGE"
+    # done
     error "recovered at $ORIGIN_HASH" ; usage ; exit 1
 }
 
-trap recover SIGINT
-
-main || recover
+trap recover SIGINT ERR && main

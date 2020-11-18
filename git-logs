@@ -3,19 +3,20 @@
 # shellcheck disable=SC1091,SC2034
 
 set -o errexit
+set -o errtrace
 set -o nounset
 set -o pipefail
 
 . bash_template.sh
 . fs4git.sh
 
+SCRIPT_VERSION="1.1.0"
 SCRIPT_DESCRIPTION="show logs in custom format"
 SCRIPT_FULL_DESCRIPTION="-"
 SCRIPT_ARGUMENTS="[OPTION]... [FILE]..."
 SCRIPT_OPTIONS=(\
     "-g, --graph"\
-    "-h HASH, --hash=HASH"\
-    "-n NUMBER, --number=NUMBER"\
+    "-r REVISION, --revision=REVISION"\
     "-G REGEX"\
     "-L START,END:FILE, -L :FUNCNAME:FILE"\
     "--help"\
@@ -23,8 +24,7 @@ SCRIPT_OPTIONS=(\
 )
 SCRIPT_OPTION_DESCRIPTIONS=(\
     "show graph of logs"\
-    "show log with given hash"\
-    "show n:th log, the newest first"\
+    "show log with given hash or order number, the newest first"\
     ""\
     ""\
     "display this help and exit"\
@@ -35,34 +35,27 @@ SCRIPT_EXAMPLES=(\
 )
 SCRIPT_SEE_ALSO=(\
     "git-join(1)"\
-    "git-redate(1)"\
     "git-revision(1)"\
     "git-save(1)"\
 )
 
-### D E F A U L T   V A L U E S ###
-ORIGIN_HASH=$(commitHash HEAD)
+# # #   D E F A U L T   V A L U E S   # # #
+ORIGIN_HASH=$(commitHash HEAD || { true; })
 FORMAT="%C(yellow)%C(bold)%C(dim)%C(italic)%h%Creset %C(yellow)%C(bold)%s%Creset%n%C(cyan)%C(bold)%d%Creset %C(cyan)%cd (%cr) by %C(dim)%C(italic)%cn%Creset%n %C(cyan)%C(dim)%C(italic)%(trailers:key=Signed-off-by)%Creset"
-
-GIT_LOG() {
-    git log --abbrev-commit --abbrev=12 --date=format:"%Y-%m-%d %H:%M:%S" "$@"
-}
+# # #   E N D   # # # # # # # # # # # # # #
 
 # We use "$@" instead of $* to preserve argument-boundary information
 # Add : to suppress getopt error messages, i.e. getopt -o ':...'
-ARGS=$(getopt -o 'gh:n:G:L:' --long 'graph,hash:,number:,help,version,update-manual' -- "$@") || { usage ; exit 1 ; }
+ARGS=$(getopt -o 'gr:G:L:' --long 'graph,revision:,help,version,update-manual' -- "$@") || { usage ; exit 1 ; }
 eval "set -- $ARGS"
 
 while true; do
     case $1 in
         (-g|--graph)
             GRAPH= ; shift ;;
-        (-h|--hash)
-            HASH=$(commitHash "$2") || { error "revision does not exist" ; usage ; exit 1 ; }
-            shift 2 ;;
-        (-n|--number)
-            HASH=$(commitHash "$2") || { error "revision does not exist" ; usage ; exit 1 ; }
-            shift 2 ;;
+        (-r|--revision)
+            isValidCommit "$2" || { error "revision does not exist" ; usage ; exit 1 ; }
+            REVISION=$(commitHash "$2") ; shift 2 ;;
         (-G)
             REGEX=$2 ; shift 2 ;;
         (-L)
@@ -82,39 +75,45 @@ done
 
 REMAINING_ARGS=("$@")
 
+# # #   H E L P   F U N C T I O N S   # # #
+git-log() {
+    git log --abbrev-commit --abbrev=12 --date=format:"%Y-%m-%d %H:%M:%S" "$@"
+}
+# # #   E N D   # # # # # # # # # # # # # #
+
 main() {
     FILE=("${REMAINING_ARGS[@]}")
 
     if [[ -n ${GRAPH+set} ]] ; then
         git log --all --graph --decorate --oneline
         exit 0
-    fi &&\
+    fi
 
-    if [[ -n ${HASH-} ]] ; then
-        GIT_LOG --pretty=format:"$FORMAT" --max-count 1 "$HASH"
+    if [[ -n ${REVISION-} ]] ; then
+        git-log --pretty=format:"$FORMAT" --max-count 1 "$REVISION"
         printf "%s" "$TERMINAL_DEFAULT_COLOR"
         exit 0
-    fi &&\
+    fi
 
     if [[ -n ${REGEX-} ]] ; then
         printf "* * * MODIFIED BY THE FOLLOWING REVISION(S): * * *\n\n"
-        GIT_LOG --pretty=format:"$FORMAT" --all --full-history -G"$REGEX" -- "${FILE[@]}"
+        git-log --pretty=format:"$FORMAT" --all --full-history -G"$REGEX" -- "${FILE[@]}"
         printf "%s" "$TERMINAL_DEFAULT_COLOR"
         exit 0
-    fi &&\
+    fi
 
     if [[ -n ${L-} ]] ; then
         printf "* * * MODIFIED BY THE FOLLOWING REVISION(S): * * *\n\n"
-        GIT_LOG --pretty=format:"$FORMAT" --reverse -L"$L"
+        git-log --pretty=format:"$FORMAT" --reverse -L"$L"
         printf "%s" "$TERMINAL_DEFAULT_COLOR"
         exit 0
-    fi &&\
+    fi
 
     if [[ -n ${FILE[0]-} ]] ; then
         printf "* * * MODIFIED BY THE FOLLOWING REVISION(S): * * *\n\n"
-    fi &&\
+    fi
 
-    GIT_LOG --pretty=format:"$FORMAT" -- "${FILE[@]}" &&\
+    git-log --pretty=format:"$FORMAT" -- "${FILE[@]}"
     printf "%s" "$TERMINAL_DEFAULT_COLOR"
 }
 
@@ -123,6 +122,4 @@ recover() {
     error "recovered at $ORIGIN_HASH" ; usage ; exit 1
 }
 
-trap recover SIGINT
-
-main || recover
+trap recover SIGINT ERR && main
