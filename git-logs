@@ -3,6 +3,7 @@
 # shellcheck disable=SC1091,SC2034
 
 set -o errexit
+set -o errtrace
 set -o nounset
 set -o pipefail
 
@@ -35,18 +36,14 @@ SCRIPT_EXAMPLES=(\
 )
 SCRIPT_SEE_ALSO=(\
     "git-join(1)"\
-    "git-redate(1)"\
     "git-revision(1)"\
     "git-save(1)"\
 )
 
-### D E F A U L T   V A L U E S ###
+# # #   D E F A U L T   V A L U E S   # # #
 ORIGIN_HASH=$(commitHash HEAD)
 FORMAT="%C(yellow)%C(bold)%C(dim)%C(italic)%h%Creset %C(yellow)%C(bold)%s%Creset%n%C(cyan)%C(bold)%d%Creset %C(cyan)%cd (%cr) by %C(dim)%C(italic)%cn%Creset%n %C(cyan)%C(dim)%C(italic)%(trailers:key=Signed-off-by)%Creset"
-
-GIT_LOG() {
-    git log --abbrev-commit --abbrev=12 --date=format:"%Y-%m-%d %H:%M:%S" "$@"
-}
+# # #   E N D   # # # # # # # # # # # # # #
 
 # We use "$@" instead of $* to preserve argument-boundary information
 # Add : to suppress getopt error messages, i.e. getopt -o ':...'
@@ -82,39 +79,45 @@ done
 
 REMAINING_ARGS=("$@")
 
+# # #   H E L P   F U N C T I O N S   # # #
+git-log() {
+    git log --abbrev-commit --abbrev=12 --date=format:"%Y-%m-%d %H:%M:%S" "$@"
+}
+# # #   E N D   # # # # # # # # # # # # # #
+
 main() {
     FILE=("${REMAINING_ARGS[@]}")
 
     if [[ -n ${GRAPH+set} ]] ; then
         git log --all --graph --decorate --oneline
         exit 0
-    fi &&\
+    fi
 
     if [[ -n ${HASH-} ]] ; then
-        GIT_LOG --pretty=format:"$FORMAT" --max-count 1 "$HASH"
+        git-log --pretty=format:"$FORMAT" --max-count 1 "$HASH"
         printf "%s" "$TERMINAL_DEFAULT_COLOR"
         exit 0
-    fi &&\
+    fi
 
     if [[ -n ${REGEX-} ]] ; then
         printf "* * * MODIFIED BY THE FOLLOWING REVISION(S): * * *\n\n"
-        GIT_LOG --pretty=format:"$FORMAT" --all --full-history -G"$REGEX" -- "${FILE[@]}"
+        git-log --pretty=format:"$FORMAT" --all --full-history -G"$REGEX" -- "${FILE[@]}"
         printf "%s" "$TERMINAL_DEFAULT_COLOR"
         exit 0
-    fi &&\
+    fi
 
     if [[ -n ${L-} ]] ; then
         printf "* * * MODIFIED BY THE FOLLOWING REVISION(S): * * *\n\n"
-        GIT_LOG --pretty=format:"$FORMAT" --reverse -L"$L"
+        git-log --pretty=format:"$FORMAT" --reverse -L"$L"
         printf "%s" "$TERMINAL_DEFAULT_COLOR"
         exit 0
-    fi &&\
+    fi
 
     if [[ -n ${FILE[0]-} ]] ; then
         printf "* * * MODIFIED BY THE FOLLOWING REVISION(S): * * *\n\n"
-    fi &&\
+    fi
 
-    GIT_LOG --pretty=format:"$FORMAT" -- "${FILE[@]}" &&\
+    git-log --pretty=format:"$FORMAT" -- "${FILE[@]}"
     printf "%s" "$TERMINAL_DEFAULT_COLOR"
 }
 
@@ -123,6 +126,4 @@ recover() {
     error "recovered at $ORIGIN_HASH" ; usage ; exit 1
 }
 
-trap recover SIGINT
-
-main || recover
+trap recover SIGINT ERR && main
