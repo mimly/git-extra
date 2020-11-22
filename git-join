@@ -58,10 +58,10 @@ while true; do
             MESSAGE=$2 ; shift 2 ;;
         (-f|--from)
             isValidCommit "$2" || { error "revision does not exist" ; usage ; exit 1 ; }
-            FROM=$2 ; shift 2 ;;
+            FROM=$(commitNumber "$2") ; shift 2 ;;
         (-t|--to)
             isValidCommit "$2" || { error "revision does not exist" ; usage ; exit 1 ; }
-            TO=$2 ; shift 2 ;;
+            TO=$(commitNumber "$2") ; shift 2 ;;
         (-v|--verbose)
             VERBOSE= ; shift ;;
         (--help)
@@ -104,16 +104,15 @@ numberOfStashes() {
 main() {
     ERRORS=()
 
-    : "${FROM:=0}"
-    : "${TO:=0}"
-    local NUMBER_OF_REVISIONS=$(( TO - FROM ))
+    local NUMBER_OF_REVISIONS
+    NUMBER_OF_REVISIONS=$(numberOfCommitsBetween "$FROM" "$TO")
     if [[ $NUMBER_OF_REVISIONS -lt 1 || $NUMBER_OF_REVISIONS -gt $(( $(totalNumberOfCommits HEAD) - FROM )) ]] ; then
         error "wrong revision range" ; usage ; exit 1
     fi
 
     local JOINED_REVISIONS=()
-    for HASH in $(git rev-list --abbrev-commit HEAD~$(( TO - 1 ))..HEAD~$(( FROM - 1 ))) ; do
-        JOINED_REVISIONS+=("$(git logs --hash "$HASH")")
+    for HASH in $(git rev-list --abbrev-commit "$(commitHash "$TO")".."$(commitHash "$FROM")") ; do
+        JOINED_REVISIONS+=("$(git logs --revision "$HASH")")
     done
 
     if [[ -z ${VERBOSE+set} ]] ; then
@@ -167,7 +166,7 @@ main() {
         printf "%s\n" "$REVISION"
     done
     printf "* * * REVISIONS JOINED AS FOLLOWS: * * *\n\n"
-    git logs --number "$FROM"
+    git logs --revision "$FROM"
 }
 
 recover() {

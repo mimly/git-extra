@@ -15,8 +15,7 @@ SCRIPT_FULL_DESCRIPTION="-"
 SCRIPT_ARGUMENTS="[OPTION]... [FILE]..."
 SCRIPT_OPTIONS=(\
     "-g, --graph"\
-    "-h HASH, --hash=HASH"\
-    "-n NUMBER, --number=NUMBER"\
+    "-r REVISION, --revision=REVISION"\
     "-G REGEX"\
     "-L START,END:FILE, -L :FUNCNAME:FILE"\
     "--help"\
@@ -24,8 +23,7 @@ SCRIPT_OPTIONS=(\
 )
 SCRIPT_OPTION_DESCRIPTIONS=(\
     "show graph of logs"\
-    "show log with given hash"\
-    "show n:th log, the newest first"\
+    "show log with given hash or order number, the newest first"\
     ""\
     ""\
     "display this help and exit"\
@@ -47,19 +45,16 @@ FORMAT="%C(yellow)%C(bold)%C(dim)%C(italic)%h%Creset %C(yellow)%C(bold)%s%Creset
 
 # We use "$@" instead of $* to preserve argument-boundary information
 # Add : to suppress getopt error messages, i.e. getopt -o ':...'
-ARGS=$(getopt -o 'gh:n:G:L:' --long 'graph,hash:,number:,help,version,update-manual' -- "$@") || { usage ; exit 1 ; }
+ARGS=$(getopt -o 'gr:G:L:' --long 'graph,revision:,help,version,update-manual' -- "$@") || { usage ; exit 1 ; }
 eval "set -- $ARGS"
 
 while true; do
     case $1 in
         (-g|--graph)
             GRAPH= ; shift ;;
-        (-h|--hash)
-            HASH=$(commitHash "$2") || { error "revision does not exist" ; usage ; exit 1 ; }
-            shift 2 ;;
-        (-n|--number)
-            HASH=$(commitHash "$2") || { error "revision does not exist" ; usage ; exit 1 ; }
-            shift 2 ;;
+        (-r|--revision)
+            isValidCommit "$2" || { error "revision does not exist" ; usage ; exit 1 ; }
+            REVISION=$(commitHash "$2") ; shift 2 ;;
         (-G)
             REGEX=$2 ; shift 2 ;;
         (-L)
@@ -93,8 +88,8 @@ main() {
         exit 0
     fi
 
-    if [[ -n ${HASH-} ]] ; then
-        git-log --pretty=format:"$FORMAT" --max-count 1 "$HASH"
+    if [[ -n ${REVISION-} ]] ; then
+        git-log --pretty=format:"$FORMAT" --max-count 1 "$REVISION"
         printf "%s" "$TERMINAL_DEFAULT_COLOR"
         exit 0
     fi

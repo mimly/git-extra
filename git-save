@@ -66,7 +66,7 @@ while true; do
             isValidCommit "$2" || { error "revision does not exist" ; usage ; exit 1 ; }
             : "${DATE:=$(commitDate "$2")}"
             : "${MESSAGE:=$(commitMessage "$2")}"
-            REVISION=$2 ; shift 2 ;;
+            REVISION=$(commitHash "$2") ; shift 2 ;;
         (-v|--verbose)
             VERBOSE= ; shift ;;
         (--help)
@@ -99,16 +99,16 @@ main() {
 
     : "${DATE:=$(date +%Y-%m-%dT%H:%M:%S --date now)}"
     : "${MESSAGE:=$(commitMessage "$ORIGIN_HASH")}"
-    : "${REVISION:=1}"
+    : "${REVISION:=$(commitHash HEAD)}"
     : "${FILE:=${REMAINING_ARGS[@]}}"
 
     local UPDATED_REVISION
-    UPDATED_REVISION="$(git logs --hash "$(commitHash "$REVISION")")"
+    UPDATED_REVISION=$(git logs --revision "$REVISION")
 
-    if [[ $REVISION -eq 1 ]] ; then
+    if [[ $REVISION == $(commitHash HEAD) ]] ; then
         git revision --verbose --amend --date "$DATE" "$MESSAGE" "$FILE" || { ERRORS+=("git revision error") ; return 1 ; }
     else
-        git join --verbose --date "$DATE" --message "$MESSAGE" --from "$REVISION" --to "$(( REVISION + 1 ))" "${FILE:=.}" || { ERRORS+=("git join error") ; return 1 ; }
+        git join --verbose --date "$DATE" --message "$MESSAGE" --from "$REVISION" --to "$(commitHash "$REVISION~1")" "${FILE:=.}" || { ERRORS+=("git join error") ; return 1 ; }
     fi
 
     if [[ -z ${VERBOSE+set} ]] ; then
@@ -116,8 +116,8 @@ main() {
     fi
 
     printf "%s\n" "$UPDATED_REVISION"
-    printf "* * * #%d REVISION UPDATED AS FOLLOWS * * *\n\n" "$REVISION"
-    git logs --hash "$REVISION"
+    printf "* * * #%s REVISION UPDATED AS FOLLOWS * * *\n\n" "${REVISION:0:6}"
+    git logs --revision "$(commitNumber "$REVISION")"
 }
 
 recover() {

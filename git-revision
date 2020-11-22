@@ -113,7 +113,7 @@ main() {
     fi
 
     printf "* * * NEW REVISION DONE * * *\n\n"
-    git logs --hash HEAD
+    git logs --revision HEAD
 }
 
 recover() {

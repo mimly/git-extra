@@ -157,7 +157,21 @@ isValidDate() {
 }
 
 totalNumberOfCommits() {
-    git rev-list --count "$1" 2>/dev/null
+    local REVISION
+    REVISION=$(commitHash "$1")
+    git rev-list --count "${REVISION:-0}" 2>/dev/null
+}
+
+numberOfCommitsBetween() {
+    local FROM TO NUMBER
+    FROM=$(commitHash "$1")
+    TO=$(commitHash "$2")
+    NUMBER=$(git rev-list --count "${FROM:-0}..${TO:-0}" 2>/dev/null)
+    if [[ $NUMBER -eq 0 ]] ; then
+        git rev-list --count "${TO:-0}..${FROM:-0}" 2>/dev/null
+    else
+        echo "$NUMBER"
+    fi
 }
 
 isValidCommit() {
@@ -170,6 +184,10 @@ commitHash() {
     else
         git rev-parse --verify --quiet "$1" 2>/dev/null
     fi
+}
+
+commitNumber() {
+    git rev-list --count HEAD~$(( $(totalNumberOfCommits "$(commitHash "$1")") - 1 )) 2>/dev/null
 }
 
 commitMessage() {
