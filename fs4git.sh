@@ -49,7 +49,7 @@ gitCommitInfo() {
         fi
 
         local gitCommitInfo
-        gitCommitInfo=$(colorize --fg-custom-scheme 0:238,1:$hashColor,2:239,4:240,6:$statusColor,7:241,8:242,10:243,12:244,14:245,16:246,18:247,20:248,22:249,24:250,26:251 "[#$hash$status $message]")
+        gitCommitInfo=$(colorize --fg-style 3 --fg-custom-scheme 0:238,1:$hashColor,2:239,4:240,6:$statusColor,7:241,8:242,10:243,12:244,14:245,16:246,18:247,20:248,22:249,24:250,26:251 "[#$hash$status $message]")
 
         allCharacters=$(( ${#gitCommitInfo} + 1 ))
         nonPrintableCharacters=$(( nonPrintableCharacters + $(read -r -u 7 x ; echo "$x") ))
