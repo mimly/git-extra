@@ -121,6 +121,8 @@ main() {
 }
 
 recover() {
+    printf "\n\n* * *   R E C O V E R (git-save)   * * *\n\n"
+
     # Reset the index, but not the working tree (i.e., the changed files are preserved but not marked for commit)
     git reset "$(originRevision)" --
 

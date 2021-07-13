@@ -117,6 +117,8 @@ main() {
 }
 
 recover() {
+    printf "\n\n* * *   R E C O V E R (git-revision)   * * *\n\n"
+
     export GIT_AUTHOR_DATE=
     export GIT_COMMITTER_DATE=
 

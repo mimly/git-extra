@@ -152,9 +152,18 @@ main() {
         git revision --verbose --date "${COMMIT_DATES[$i]}" "${COMMIT_MESSAGES[$i]}"
     done
 
+    git stash list
+    echo hehehe
+    git status
+
     if [[ -n $(updatedOriginStash) ]] ; then
+        echo updatedOriginStash
         git stash pop "$(updatedOriginStash)"
-    elif [[ -n $(originStash) ]] ; then
+    fi
+
+    if [[ -n $(originStash) ]] ; then
+        echo originStash
+        git status
         git stash pop "$(originStash)"
     fi
 
@@ -170,6 +179,8 @@ main() {
 }
 
 recover() {
+    printf "\n\n* * *   R E C O V E R (git-join)   * * *\n\n"
+
     # Reset the index, but not the working tree (i.e., the changed files are preserved but not marked for commit)
     git reset "$(originRevision)" --
     git stash push --all
