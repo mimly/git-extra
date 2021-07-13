@@ -80,7 +80,7 @@ originRevision() {
 # # #   E N D   # # # # # # # # # # # # # #
 
 main() {
-    ERRORS=()
+    # ERRORS=()
 
     if [[ ${#REMAINING_ARGS[@]} -lt 1 ]] ; then
         error "required parameters not supplied" ; usage ; exit 1
@@ -96,7 +96,7 @@ main() {
     : "${AMEND:=""}"
 
     if [[ -n ${FILE[*]} ]] ; then
-        git add -- "${FILE[@]}" || { ERRORS+=("file does not exist") ; return 1 ; }
+        git add -- "${FILE[@]}" || { return 1 ; }
         NO_AUTO_INDEXING=
     fi
 
@@ -106,7 +106,7 @@ main() {
 
     export GIT_AUTHOR_DATE=$DATE
     export GIT_COMMITTER_DATE=$DATE
-    git commit --gpg-sign --signoff --message "$MESSAGE" $AMEND
+    git commit --gpg-sign --signoff --message "$MESSAGE" $AMEND || { return 1 ; }
 
     if [[ -z ${VERBOSE+set} ]] ; then
         exec 1>&3 2>&4
@@ -126,7 +126,7 @@ recover() {
     git reset "$(originRevision)" --
 
     if [[ -n ${FILE[*]} ]] ; then
-        git restore --staged -- "${FILE[@]}" || ERRORS+=("file does not exist")
+        git restore --staged -- "${FILE[@]}" || { true; }
     else
         git restore --staged -- .
     fi
@@ -135,9 +135,9 @@ recover() {
         exec 1>&3 2>&4
     fi
 
-    for ERROR_MESSAGE in "${ERRORS[@]}" ; do
-        error "$ERROR_MESSAGE"
-    done
+    # for ERROR_MESSAGE in "${ERRORS[@]}" ; do
+    #     error "$ERROR_MESSAGE"
+    # done
     error "recovered at $ORIGIN_HASH" ; usage ; exit 1
 
 }
