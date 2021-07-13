@@ -102,7 +102,7 @@ numberOfStashes() {
 # # #   E N D   # # # # # # # # # # # # # #
 
 main() {
-    ERRORS=()
+    # ERRORS=()
 
     local NUMBER_OF_REVISIONS
     NUMBER_OF_REVISIONS=$(numberOfCommitsBetween "$FROM" "$TO")
@@ -142,7 +142,7 @@ main() {
     git revision --verbose --date "$DATE" "$MESSAGE"
 
     if [[ -n $(originStash) && -n ${FILE[*]} ]] ; then
-        git stash apply "$(originStash)" || { ERRORS+=("file had been created at later revision") ; return 1 ; }
+        git stash apply "$(originStash)" || { return 1 ; }
         git revision --verbose --amend --no-auto-indexing --date "$DATE" "$MESSAGE" "$FILE"
         git stash push --all --message updated_origin_stash
     fi
@@ -152,18 +152,18 @@ main() {
         git revision --verbose --date "${COMMIT_DATES[$i]}" "${COMMIT_MESSAGES[$i]}"
     done
 
-    git stash list
-    echo hehehe
-    git status
+    git stash list # remove
+    echo hehehe# remove
+    git status# remove
 
     if [[ -n $(updatedOriginStash) ]] ; then
-        echo updatedOriginStash
+        echo updatedOriginStash# remove
         git stash pop "$(updatedOriginStash)"
     fi
-
+    # elif [[ -n $(originStash) ]] ; then
     if [[ -n $(originStash) ]] ; then
-        echo originStash
-        git status
+        echo originStash# remove
+        git status# remove
         git stash pop "$(originStash)"
     fi
 
@@ -191,7 +191,7 @@ recover() {
     fi
 
     if [[ -n "$(originStash)" ]] ; then
-        git stash pop "$(originStash)" || ERRORS+=("no origin stash entry")
+        git stash pop "$(originStash)" || { true; }
     fi
 
     NUMBER_OF_STASHES_AFTER=$(numberOfStashes)
@@ -203,9 +203,9 @@ recover() {
         exec 1>&3 2>&4
     fi
 
-    for ERROR_MESSAGE in "${ERRORS[@]}" ; do
-        error "$ERROR_MESSAGE"
-    done
+    # for ERROR_MESSAGE in "${ERRORS[@]}" ; do
+    #     error "$ERROR_MESSAGE"
+    # done
     error "recovered at $ORIGIN_HASH" ; usage ; exit 1
 }
 

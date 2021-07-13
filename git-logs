@@ -117,8 +117,6 @@ main() {
 }
 
 recover() {
-    printf "\n\n* * *   R E C O V E R (git-logs)   * * *\n\n"
-
     printf "%s" "$TERMINAL_DEFAULT_COLOR"
     error "recovered at $ORIGIN_HASH" ; usage ; exit 1
 }
