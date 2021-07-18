@@ -105,11 +105,7 @@ main() {
     local UPDATED_REVISION
     UPDATED_REVISION=$(git logs --revision "$REVISION")
 
-    if [[ $REVISION == $(commitHash HEAD) ]] ; then
-        git revision --verbose --amend --date "$DATE" "$MESSAGE" "$FILE" || { return 1 ; }
-    else
-        git join --verbose --date "$DATE" --message "$MESSAGE" --from "$REVISION" --to "$(commitHash "$REVISION~1")" "${FILE:=.}" || { return 1 ; }
-    fi
+    git join --verbose --date "$DATE" --message "$MESSAGE" --from "$REVISION" --to "$(commitHash "$REVISION~1")" "${FILE:=.}" || { return 1 ; }
 
     if [[ -z ${VERBOSE+set} ]] ; then
         exec 1>&3 2>&4
