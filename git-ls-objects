@@ -1,8 +1,7 @@
 #!/bin/bash
 
-while read -r x
-do 
-    printf "$GREEN%s$RESET\n" "${x:0:2}/${x:2}"
-    git cat-file -p "$x" ; 
-    sleep 2 ; 
+while read -r x ; do
+    printf "[${GREEN}m%s[${RESET}m\n" "${x:0:2}/${x:2}"
+    git cat-file -p "${x}"
+    sleep 2
 done < <(find . -type f -not -name "*pack*" | awk -F/ '{ print $2 $3 }')

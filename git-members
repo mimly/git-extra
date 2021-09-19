@@ -2,5 +2,5 @@
 
 ( nRevisions=$(git log --pretty=oneline | wc -l) &&\
   nMembers=$(git shortlog -s -n | wc -l) &&\
-  printf "Totally %d revisions committed by %d members:\n" "$nRevisions" "$nMembers" &&\
-  git --no-pager shortlog -s -n --format="%C(red) %an %Creset" ) | $PAGER
+  printf "Totally %d revisions committed by %d members:\n" "${nRevisions}" "${nMembers}" &&\
+  git --no-pager shortlog -s -n --format="%C(red) %an %Creset" ) | ${PAGER}

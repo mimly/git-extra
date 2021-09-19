@@ -1,7 +1,5 @@
 #!/bin/bash
 
-# shellcheck disable=SC1091,SC2034
-
 set -o errexit
 set -o errtrace
 set -o nounset
@@ -29,9 +27,9 @@ SCRIPT_OPTION_DESCRIPTIONS=(\
     "latest revision date, default"\
     "oldest revision date"\
     "date format is YYYY-MM-DDThh:mm:ss"\
-    ""\
-    "first revision (incl.)"\
-    "last revision (excl.)"\
+    "defaults to latest revision message, i.e. 1's message"\
+    "first revision (incl.), defaults to 1"\
+    "last revision (excl.), defaults to FROM + 1"\
     "explain what is being done"\
     "display this help and exit"\
     "output version information and exit"\
@@ -46,36 +44,54 @@ SCRIPT_SEE_ALSO=(\
 )
 
 # # #   D E F A U L T   V A L U E S   # # #
-ORIGIN_HASH=$(commitHash HEAD || { true; })
+if isGitRepo ; then
+    originHash=$(commitHash HEAD)
+    from=$(commitNumber HEAD)
+    fromHash=$(commitHash HEAD)
+    to=$(commitNumber $(( from + 1 )))
+    toHash=$(commitHash "${to}")
+    date=$(commitDate "${from}")
+    message=$(commitMessage "${from}")
+fi
 # # #   E N D   # # # # # # # # # # # # # #
 
 # We use "$@" instead of $* to preserve argument-boundary information
 # Add : to suppress getopt error messages, i.e. getopt -o ':...'
 ARGS=$(getopt -o 'd:m:f:t:v' --long 'latest,oldest,date:,message:,from:,to:,verbose,help,version,update-manual' -- "$@") || { usage ; exit 1 ; }
-eval "set -- $ARGS"
+eval "set -- ${ARGS}"
 
 while true; do
     case $1 in
         (--latest)
-            [[ -z "${DATE:+date}" ]] || { error "date already selected" ; usage ; exit 1 ; }
-            DATE="LATEST" ; shift ;;
+            isGitRepo || { error "not a git repository" ; usage ; exit 1 ; }
+            [[ ! -v isDateSet ]] || { error "date already selected" ; usage ; exit 1 ; }
+            [[ ! -v isMessageSet ]] || { error "message already selected" ; usage ; exit 1 ; }
+            isDateSet= ; date="LATEST" ; isMessageSet= ; message="LATEST" shift ;;
         (--oldest)
-            [[ -z "${DATE:+date}" ]] || { error "date already selected" ; usage ; exit 1 ; }
-            DATE="OLDEST" ; shift ;;
+            isGitRepo || { error "not a git repository" ; usage ; exit 1 ; }
+            [[ ! -v isDateSet ]] || { error "date already selected" ; usage ; exit 1 ; }
+            [[ ! -v isMessageSet ]] || { error "message already selected" ; usage ; exit 1 ; }
+            isDateSet= ; date="OLDEST" ; isMessageSet= ; message="OLDEST" ; shift ;;
         (-d|--date)
-            [[ -z "${DATE:+date}" ]] || { error "date already selected" ; usage ; exit 1 ; }
+            isGitRepo || { error "not a git repository" ; usage ; exit 1 ; }
+            [[ ! -v isDateSet ]] || { error "date already selected" ; usage ; exit 1 ; }
             isValidDate "$2" || { error "date format is YYYY-mm-ddTHH:MM:SS" ; usage ; exit 1 ; }
-            DATE=$2 ; shift 2 ;;
+            isDateSet= ; date=$2 ; shift 2 ;;
         (-m|--message)
-            MESSAGE=$2 ; shift 2 ;;
+            isGitRepo || { error "not a git repository" ; usage ; exit 1 ; }
+            [[ ! -v isMessageSet ]] || { error "message already selected" ; usage ; exit 1 ; }
+            isMessageSet= ; message=$2 ; shift 2 ;;
         (-f|--from)
+            isGitRepo || { error "not a git repository" ; usage ; exit 1 ; }
             isValidCommit "$2" || { error "revision does not exist" ; usage ; exit 1 ; }
-            FROM=$(commitNumber "$2") ; FROM_HASH=$(commitHash "$FROM") ; shift 2 ;;
+            from=$(commitNumber "$2") ; fromHash=$(commitHash "${from}") ; shift 2 ;;
         (-t|--to)
+            isGitRepo || { error "not a git repository" ; usage ; exit 1 ; }
             isValidCommit "$2" || { error "revision does not exist" ; usage ; exit 1 ; }
-            TO=$(commitNumber "$2") ; TO_HASH=$(commitHash "$TO") ; shift 2 ;;
+            to=$(commitNumber "$2") ; toHash=$(commitHash "${to}") ; shift 2 ;;
         (-v|--verbose)
-            VERBOSE= ; shift ;;
+            isGitRepo || { error "not a git repository" ; usage ; exit 1 ; }
+            verbose= ; shift ;;
         (--help)
             usageFull ; exit 0 ;;
         (--version)
@@ -89,76 +105,88 @@ while true; do
     esac
 done
 
-REMAINING_ARGS=("$@")
+remainingArgs=("$@")
 
-# # #   H E L P   F U N C T I O N S   # # #
+# # #   H E L P E R   F U N C T I O N S   # # #
 originRevision() {
-    git reflog | grep "${ORIGIN_HASH:0:6}" | head -1 | awk '{ print substr($2, 0, length($2) - 1) }'
+    git reflog | grep "${originHash:0:6}" | head -1 | awk '{ print substr($2, 0, length($2) - 1) }'
 }
-# # #   E N D   # # # # # # # # # # # # # #
+# # #   E N D   # # # # # # # # # # # # # # # #
 
 main() {
-    # ERRORS=()
+    # errors=()
 
-    local NUMBER_OF_REVISIONS
-    NUMBER_OF_REVISIONS=$(numberOfCommitsBetween "$FROM" "$TO")
-    if [[ $NUMBER_OF_REVISIONS -lt 1 || $NUMBER_OF_REVISIONS -gt $(( $(totalNumberOfCommits HEAD) - FROM )) ]] ; then
+    local numberOfRevisions
+    numberOfRevisions=$(numberOfCommitsBetween "${from}" "${to}")
+    if [[ ${numberOfRevisions} -lt 1 || ${numberOfRevisions} -gt $(( $(totalNumberOfCommits HEAD) - from )) ]] ; then
         error "wrong revision range" ; usage ; exit 1
     fi
 
-    local JOINED_REVISIONS=()
-    for HASH in $(git rev-list --abbrev-commit "$TO_HASH".."$FROM_HASH") ; do
-        JOINED_REVISIONS+=("$(git logs --revision "$HASH")")
+    local joinedRevisions=() hash
+    for hash in $(git rev-list --abbrev-commit "${toHash}".."${fromHash}") ; do
+        joinedRevisions+=("$(git logs --revision "${hash}")")
     done
 
-    if [[ -z ${VERBOSE+set} ]] ; then
+    if [[ ! -v verbose ]] ; then
         exec 3>&1 4>&2 1>/dev/null 2>&1
     fi
 
-    case ${DATE:-date} in
-        ("LATEST") # default
-            DATE=$(commitDate "$FROM") ;
-            : "${MESSAGE:=$(commitMessage "$FROM")}" ;;
+    case ${date} in
+        ("LATEST")
+            date=$(commitDate "${from}") ;;
         ("OLDEST")
-            DATE=$(commitDate "$(( TO - 1 ))") ;
-            : "${MESSAGE:=$(commitMessage "$(( TO - 1))")}" ;;
-        (*) # default, custom date supplied
-            : "${DATE:=$(commitDate "$FROM")}"
-            : "${MESSAGE:=$(commitMessage "$FROM")}" ;;
+            date=$(commitDate "$(( to - 1 ))") ;;
+        (*) # default/custom date supplied
+            if [[ ! -v isDateSet ]] ; then
+                date=$(commitDate "${from}")
+            fi ;;
     esac
-    FILE=("${REMAINING_ARGS[@]}")
-    local QUOTED_FILE
-    QUOTED_FILE=${FILE[*]@Q}
+
+    case ${message} in
+        ("LATEST")
+            message=$(commitMessage "${from}") ;;
+        ("OLDEST")
+            message=$(commitMessage "$(( to - 1 ))") ;;
+        (*) # default/custom message supplied
+            if [[ ! -v isMessageSet ]] ; then
+                message=$(commitMessage "${from}")
+            fi ;;
+    esac
+
+    local files quotedFiles
+    files=("${remainingArgs[@]}")
+    quotedFiles=${files[*]@Q}
 
     export GIT_SEQUENCE_EDITOR
     GIT_SEQUENCE_EDITOR="sed -i "
-    local D
-    D=$(( TO - FROM ))
-    case $D in
+    local diff
+    diff=$(( to - from ))
+    case ${diff} in
         (1)
             ;;
         (*) # more than one commit
-            GIT_SEQUENCE_EDITOR+="-e '2,$D{s/^pick/fixup/}' "
+            GIT_SEQUENCE_EDITOR+="-e '2,${diff}{s/^pick/fixup/}' "
             ;;
     esac
-    GIT_SEQUENCE_EDITOR+="-e '${D}a exec git stash pop ; git revision --verbose --amend --date \"$DATE\" \"$MESSAGE\" ${QUOTED_FILE//\'/\"} || { git stash push ; exit 1 ; } ; git stash push' "
+    GIT_SEQUENCE_EDITOR+="-e '${diff}a exec git stash pop ; git revision --verbose --amend --date \"${date}\" \"${message}\" ${quotedFiles//\'/\"} || { git stash push ; exit 1 ; } ; git stash push' "
     # preserve dates for all (latest) commits before FROM commit
-    for HASH in $(git rev-list --abbrev-commit --reverse "$FROM_HASH"..HEAD) ; do
-        GIT_SEQUENCE_EDITOR+="-e '$(( ++D ))a exec git revision --verbose --amend --date $(commitDate "$HASH") \"$(commitMessage "$HASH")\" || { exit 1 ; }' "
+    for hash in $(git rev-list --abbrev-commit --reverse "${fromHash}"..HEAD) ; do
+        GIT_SEQUENCE_EDITOR+="-e '$(( ++diff ))a exec git revision --verbose --amend --date $(commitDate "${hash}") \"$(commitMessage "${hash}")\" || { exit 1 ; }' "
     done
     git stash push # cannot rebase due to unstaged changes
-    git rebase -i "$TO_HASH"
+    git rebase -i "${toHash}"
     git stash pop || { true; } # returns 1 if no stash entries found
 
-    if [[ -z ${VERBOSE+set} ]] ; then
+    if [[ ! -v verbose ]] ; then
         exec 1>&3 2>&4
     fi
 
-    for REVISION in "${JOINED_REVISIONS[@]}" ; do
-        printf "%s\n" "$REVISION"
+    local revision
+    for revision in "${joinedRevisions[@]}" ; do
+        printf "%s\n" "${revision}"
     done
     printf "* * * REVISIONS JOINED AS FOLLOWS: * * *\n\n"
-    git logs --revision "$FROM"
+    git logs --revision "${from}"
 }
 
 recover() {
@@ -171,14 +199,14 @@ recover() {
     # reset the index, but not the working tree (i.e. the changed files are preserved but not marked for commit)
     git reset "$(originRevision)" --
 
-    if [[ -z ${VERBOSE+set} ]] ; then
+    if [[ ! -v verbose ]] ; then
         exec 1>&3 2>&4
     fi
 
-    # for ERROR_MESSAGE in "${ERRORS[@]}" ; do
-    #     error "$ERROR_MESSAGE"
+    # for errorMsg in "${errors[@]}" ; do
+    #     error "$errorMsg"
     # done
-    error "recovered at $ORIGIN_HASH" ; usage ; exit 1
+    error "recovered at ${originHash}" ; usage ; exit 1
 }
 
 trap recover SIGINT ERR && main

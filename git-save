@@ -1,7 +1,5 @@
 #!/bin/bash
 
-# shellcheck disable=SC1091,SC2034
-
 set -o errexit
 set -o errtrace
 set -o nounset
@@ -44,33 +42,46 @@ SCRIPT_SEE_ALSO=(\
 )
 
 # # #   D E F A U L T   V A L U E S   # # #
-ORIGIN_HASH=$(commitHash HEAD || { true; })
+if isGitRepo ; then
+    originHash=$(commitHash HEAD)
+    revision=$(commitHash HEAD)
+    date=$(commitDate "${revision}")
+    message=$(commitMessage "${revision}")
+fi
 # # #   E N D   # # # # # # # # # # # # # #
 
 # We use "$@" instead of $* to preserve argument-boundary information
 # Add : to suppress getopt error messages, i.e. getopt -o ':...'
 ARGS=$(getopt -o 'd:m:r:v' --long 'now,then,date:,message:,revision:,verbose,help,version,update-manual' -- "$@") || { usage ; exit 1 ; }
-eval "set -- $ARGS"
+eval "set -- ${ARGS}"
 
 while true; do
     case $1 in
         (--now)
-            [[ -z "${DATE:+date}" ]] || { error "date already selected" ; usage ; exit 1 ; }
-            DATE=$(date +%Y-%m-%dT%H:%M:%S --date now) ; shift ;;
+            isGitRepo || { error "not a git repository" ; usage ; exit 1 ; }
+            [[ ! -v isDateSet ]] || { error "date already selected" ; usage ; exit 1 ; }
+            isDateSet= ; date=$(date +%Y-%m-%dT%H:%M:%S --date now) ; shift ;;
         (--then)
-            [[ -z "${DATE:+date}" ]] || { error "date already selected" ; usage ; exit 1 ; }
-            DATE= ; shift ;;
+            isGitRepo || { error "not a git repository" ; usage ; exit 1 ; }
+            [[ ! -v isDateSet ]] || { error "date already selected" ; usage ; exit 1 ; }
+            isDateSet= ; shift ;;
         (-d|--date)
-            [[ -z "${DATE:+date}" ]] || { error "date already selected" ; usage ; exit 1 ; }
+            isGitRepo || { error "not a git repository" ; usage ; exit 1 ; }
+            [[ ! -v isDateSet ]] || { error "date already selected" ; usage ; exit 1 ; }
             isValidDate "$2" || { error "date format is YYYY-mm-ddTHH:MM:SS" ; usage ; exit 1 ; }
-            DATE=$2 ; shift 2 ;;
+            isDateSet= ; date=$2 ; shift 2 ;;
         (-m|--message)
-            MESSAGE=$2 ; shift 2 ;;
+            isGitRepo || { error "not a git repository" ; usage ; exit 1 ; }
+            isMessageSet= ; message=$2 ; shift 2 ;;
         (-r|--revision)
+            isGitRepo || { error "not a git repository" ; usage ; exit 1 ; }
             isValidCommit "$2" || { error "revision does not exist" ; usage ; exit 1 ; }
-            REVISION=$(commitHash "$2") ; shift 2 ;;
+            [[ -v isDateSet ]] || date=$(commitDate "$2")
+            [[ -v isMessageSet ]] || message=$(commitMessage "$2")
+            revision=$(commitHash "$2") ; shift 2 ;;
         (-v|--verbose)
-            VERBOSE= ; shift ;;
+            isGitRepo || { error "not a git repository" ; usage ; exit 1 ; }
+            verbose= ; shift ;;
         (--help)
             usageFull ; exit 0 ;;
         (--version)
@@ -84,38 +95,36 @@ while true; do
     esac
 done
 
-REMAINING_ARGS=("$@")
+remainingArgs=("$@")
 
-# # #   H E L P   F U N C T I O N S   # # #
+# # #   H E L P E R   F U N C T I O N S   # # #
 originRevision() {
-    git reflog | grep "${ORIGIN_HASH:0:6}" | head -1 | awk '{ print substr($2, 0, length($2) - 1) }'
+    git reflog | grep "${originHash:0:6}" | head -1 | awk '{ print substr($2, 0, length($2) - 1) }'
 }
-# # #   E N D   # # # # # # # # # # # # # #
+# # #   E N D   # # # # # # # # # # # # # # # #
 
 main() {
-    # ERRORS=()
+    # errors=()
 
-    if [[ -z ${VERBOSE+set} ]] ; then
+    if [[ ! -v verbose ]] ; then
         exec 3>&1 4>&2 1>/dev/null 2>&1
     fi
 
-    : "${REVISION:=$(commitHash HEAD)}"
-    : "${DATE:=$(commitDate "$REVISION")}"
-    : "${MESSAGE:=$(commitMessage "$REVISION")}"
-    FILE=("${REMAINING_ARGS[@]}")
+    local files
+    files=("${remainingArgs[@]}")
 
-    local UPDATED_REVISION
-    UPDATED_REVISION=$(git logs --revision "$REVISION")
+    local updatedRevision
+    updatedRevision=$(git logs --revision "${revision}")
 
-    git join --verbose --date "$DATE" --message "$MESSAGE" --from "$REVISION" --to "$(commitHash "$REVISION~1")" "${FILE[@]}" || { return 1 ; }
+    git join --verbose --date "${date}" --message "${message}" --from "${revision}" --to "$(commitHash "${revision}~1")" "${files[@]}" || { return 1 ; }
 
-    if [[ -z ${VERBOSE+set} ]] ; then
+    if [[ ! -v verbose ]] ; then
         exec 1>&3 2>&4
     fi
 
-    printf "%s\n" "$UPDATED_REVISION"
-    printf "* * * #%s REVISION UPDATED AS FOLLOWS * * *\n\n" "${REVISION:0:6}"
-    git logs --revision "$(commitNumber "$REVISION")"
+    printf "%s\n" "${updatedRevision}"
+    printf "* * * #%s REVISION UPDATED AS FOLLOWS * * *\n\n" "${revision:0:6}"
+    git logs --revision "$(commitNumber "${revision}")"
 }
 
 recover() {
@@ -124,14 +133,14 @@ recover() {
     # reset the index, but not the working tree (i.e. the changed files are preserved but not marked for commit)
     git reset "$(originRevision)" --
 
-    if [[ -z ${VERBOSE+set} ]] ; then
+    if [[ ! -v verbose ]] ; then
         exec 1>&3 2>&4
     fi
 
-    # for ERROR_MESSAGE in "${ERRORS[@]}" ; do
-    #     error "$ERROR_MESSAGE"
+    # for errorMsg in "${errors[@]}" ; do
+    #     error "$errorMsg"
     # done
-    error "recovered at $ORIGIN_HASH" ; usage ; exit 1
+    error "recovered at ${originHash}" ; usage ; exit 1
 }
 
 trap recover SIGINT ERR && main
