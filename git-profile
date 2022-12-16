@@ -1,0 +1,21 @@
+#!/bin/bash
+
+ID=$1
+
+NAME="mimly" &&\
+MAIL="m.j.mlynczak@gmail.com" &&\
+SIGNING_KEY="14A223F8217DDFEB"
+
+if [[ "${ID}" == "kth" ]] ; then
+    NAME="Mikołaj Młyńczak" &&\
+    MAIL="mlynczak@kth.se" &&\
+    SIGNING_KEY="36DB2E1989B9A0E0"
+elif [[ "${ID}" == "wkit" ]] ; then
+    NAME="Mikołaj Młyńczak" &&\
+    MAIL="mikolaj.mlynczak@weknowit.nu" &&\
+    SIGNING_KEY="EAED4EC81FDD93A8"
+fi
+
+git config --local user.name "${NAME}" &&\
+git config --local user.email "${MAIL}" &&\
+git config --local user.signingkey "${SIGNING_KEY}"
