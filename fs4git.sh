@@ -7,8 +7,10 @@ gitBranchInfo() {
     if isGitRepo ; then
         local branch
         branch=$(branch 2>/dev/null)
+        local branchInfo
+        branchInfo="on  ${branch}"
         local gitBranchInfo
-        gitBranchInfo=$(colorize --fg-color 50 --fg-step 4 "on  ${branch}")
+        gitBranchInfo=$(colorize --fg-color 50 --fg-step $(( ${#branchInfo} / 4 + 1 )) "${branchInfo}")
 
         allCharacters=$(( ${#gitBranchInfo} + 1 ))
         nonPrintableCharacters=$(( nonPrintableCharacters + $(read -r -u 7 x ; echo "${x}") ))
@@ -67,8 +69,10 @@ gitPushInfo() {
     if isGitRepo && isRemoteSetUp && ! isPushed ; then
         local branch
         branch=$(branch 2>/dev/null)
+        local pushInfo
+        pushInfo="➤ origin/${branch}"
         local gitPushInfo
-        gitPushInfo=$(colorize --fg-color 50 --fg-step 4 "➤ origin/${branch}")
+        gitPushInfo=$(colorize --fg-color 170 --fg-step $(( ${#pushInfo} / 4 + 1 )) "${pushInfo}")
 
         allCharacters=$(( ${#gitPushInfo} + 1 ))
         nonPrintableCharacters=$(( nonPrintableCharacters + $(read -r -u 7 x ; echo "${x}") ))
