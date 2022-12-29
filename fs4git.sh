@@ -6,7 +6,7 @@ gitBranchInfo() {
 
     if isGitRepo ; then
         local branch
-        branch=$(branch 2>/dev/null)
+        branch=$(branch)
         local branchInfo
         branchInfo="on  ${branch}"
         local gitBranchInfo
@@ -62,21 +62,50 @@ gitCommitInfo() {
     echo "${nonPrintableCharacters}" >&7
 }
 
-gitPushInfo() {
+gitSyncInfo() {
     local allCharacters=0
     local nonPrintableCharacters=0
 
-    if isGitRepo && isRemoteSetUp && ! isPushed ; then
-        local branch
-        branch=$(branch 2>/dev/null)
-        local pushInfo
-        pushInfo="➤ origin/${branch}"
-        local gitPushInfo
-        gitPushInfo=$(colorize --fg-color 170 --fg-step $(( ${#pushInfo} / 4 + 1 )) "${pushInfo}")
+    if isGitRepo && isUpstreamConfigured ; then
+        local UPSTREAM LOCAL REMOTE BASE
+        UPSTREAM=${1:-'@{u}'}
+        LOCAL=$(git rev-parse @)
+        REMOTE=$(git rev-parse "${UPSTREAM}")
+        BASE=$(git merge-base @ "${UPSTREAM}")
 
-        allCharacters=$(( ${#gitPushInfo} + 1 ))
+        # chars "↓↑▼▲"
+        local PRIMARY_COLOR=229 SECONDARY_COLOR=244 UP="↑" DOWN="↓" AHEAD="-" BEHIND="-" REMOTE_BRANCH syncInfo gitSyncInfo
+        REMOTE_BRANCH=$(git for-each-ref --format='%(upstream:short)' "$(git symbolic-ref -q HEAD)")
+
+        if [[ "${LOCAL}" = "${REMOTE}" ]] ; then # up-to-date
+            syncInfo="${DOWN}${BEHIND}${UP}${AHEAD} ⎇  ${REMOTE_BRANCH}"
+            gitSyncInfo=$(colorize --fg-color "${SECONDARY_COLOR}" --fg-step ${#syncInfo} "${syncInfo}")
+        elif [[ "${LOCAL}" = "${BASE}" ]] ; then # need to pull
+            BEHIND=$(git branch -vv | sed -n -e '/^\*/ { p }' | sed -e 's/.*\[.*behind \([1-9][0-9]*\).*\].*/\1/')
+            syncInfo="${DOWN}${BEHIND}${UP}${AHEAD}"
+            gitSyncInfo=$(colorize --fg-custom-scheme "0:${PRIMARY_COLOR},2:${SECONDARY_COLOR}" "${syncInfo}")
+            nonPrintableCharacters=$(( nonPrintableCharacters + $(read -r -u 7 x ; echo "${x}") ))
+
+            syncInfo=" ⎇  ${REMOTE_BRANCH}"
+            gitSyncInfo+=$(colorize --fg-color "${PRIMARY_COLOR}" --fg-step $(( ${#syncInfo} / 4 + 1 )) "${syncInfo}")
+        elif [[ "${REMOTE}" = "${BASE}" ]] ; then # need to push
+            AHEAD=$(git branch -vv | sed -n -e '/^\*/ { p }' | sed -e 's/.*\[.*ahead \([1-9][0-9]*\).*\].*/\1/')
+            syncInfo="${DOWN}${BEHIND}${UP}${AHEAD}"
+            gitSyncInfo=$(colorize --fg-custom-scheme "0:${SECONDARY_COLOR},2:${PRIMARY_COLOR}" "${syncInfo}")
+            nonPrintableCharacters=$(( nonPrintableCharacters + $(read -r -u 7 x ; echo "${x}") ))
+
+            syncInfo=" ⎇  ${REMOTE_BRANCH}"
+            gitSyncInfo+=$(colorize --fg-color "${PRIMARY_COLOR}" --fg-step $(( ${#syncInfo} / 4 + 1 )) "${syncInfo}")
+        else # diverged
+            BEHIND=$(git branch -vv | sed -n -e '/^\*/ { p }' | sed -e 's/.*\[.*behind \([1-9][0-9]*\).*\].*/\1/')
+            AHEAD=$(git branch -vv | sed -n -e '/^\*/ { p }' | sed -e 's/.*\[.*ahead \([1-9][0-9]*\).*\].*/\1/')
+            syncInfo="${DOWN}${BEHIND}${UP}${AHEAD} ⎇  ${REMOTE_BRANCH}"
+            gitSyncInfo=$(colorize --fg-color "${PRIMARY_COLOR}" --fg-step $(( ${#syncInfo} / 4 + 1 )) "${syncInfo}")
+        fi
+
+        allCharacters=$(( ${#gitSyncInfo} + 1 ))
         nonPrintableCharacters=$(( nonPrintableCharacters + $(read -r -u 7 x ; echo "${x}") ))
-        printf "%s " "${gitPushInfo}"
+        printf "%s " "${gitSyncInfo}"
     fi
 
     echo "${allCharacters}" >&7
@@ -139,20 +168,14 @@ hasAnySubmodules() {
     [[ -n ${submodules} ]]
 }
 
-isRemoteSetUp() {
-    local remote
-    remote=$(git remote -v 2>/dev/null)
-    [[ -n ${remote} ]]
-}
-
-isPushed() {
-    local branch
-    branch=$(branch 2>/dev/null)
-    [[ $(commitHash "${branch}") == $(commitHash "origin/${branch}") ]]
+isUpstreamConfigured() {
+    local remoteBranch
+    remoteBranch=$(git for-each-ref --format='%(upstream:short)' "$(git symbolic-ref -q HEAD)")
+    [[ -n ${remoteBranch} ]]
 }
 
 branch() {
-    git branch | awk '{if ($1 == "*") { $1 = ""; gsub(/^[ ]+/, "", $0); gsub(/[ ]+$/, "", $0); print $0 }}'
+    git branch 2>/dev/null | awk '{if ($1 == "*") { $1 = ""; gsub(/^[ ]+/, "", $0); gsub(/[ ]+$/, "", $0); print $0 }}'
 }
 
 isValidDate() {
