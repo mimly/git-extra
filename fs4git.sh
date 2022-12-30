@@ -1,20 +1,16 @@
 #!/bin/bash
 
 gitBranchInfo() {
-    local allCharacters=0
-    local nonPrintableCharacters=0
+    local allCharacters=0 nonPrintableCharacters=0
 
     if isGitRepo ; then
-        local branch
-        branch=$(branch)
-        local branchInfo
-        branchInfo="on  ${branch}"
-        local gitBranchInfo
-        gitBranchInfo=$(colorize --fg-color 50 --fg-step $(( ${#branchInfo} / 4 + 1 )) "${branchInfo}")
+        local text prompt
+        text="on  $(branch)"
+        prompt=$(colorize --fg-color 50 --fg-step $(( ${#text} / 4 + 1 )) "${text}")
 
-        allCharacters=$(( ${#gitBranchInfo} + 1 ))
-        nonPrintableCharacters=$(( nonPrintableCharacters + $(read -r -u 7 x ; echo "${x}") ))
-        printf "%s " "${gitBranchInfo}"
+        allCharacters=$(( ${#prompt} + 1 ))
+        nonPrintableCharacters=$(( nonPrintableCharacters + $(read -r -u 7 cs ; echo "${cs}") ))
+        printf "%s " "${prompt}"
     fi
 
     echo "${allCharacters}" >&7
@@ -22,40 +18,31 @@ gitBranchInfo() {
 }
 
 gitCommitInfo() {
-    local allCharacters=0
-    local nonPrintableCharacters=0
+    local allCharacters=0 nonPrintableCharacters=0
 
     if isGitRepo ; then
-        local hash
-        local hashColor=230
-        hash=$(commitHash HEAD)
-        local message
-        message=$(commitMessage HEAD)
+        local STATUS STATUS_COLOR HASH HASH_COLOR=230 MESSAGE text prompt
 
-        # Shorten hash and message if too long
-        hash="${hash:0:4}"
-        if [[ ${#message} -gt 14 ]] ; then
-            message="${message:0:14}..."
-        fi
-
-        local status
-        local statusColor
-        local gitStatus
-        gitStatus=$(git status --porcelain)
-        if [[ -z ${gitStatus} ]] ; then
-            status="✔"
-            statusColor=46
+        if [[ -z $(git status --porcelain) ]] ; then
+            STATUS="✔"
+            STATUS_COLOR=46
         else
-            status="✘"
-            statusColor=196
+            STATUS="✘"
+            STATUS_COLOR=196
         fi
 
-        local gitCommitInfo
-        gitCommitInfo=$(colorize --fg-style 3 --fg-custom-scheme "0:238,1:${hashColor},2:239,4:240,6:${statusColor},7:241,8:242,10:243,12:244,14:245,16:246,18:247,20:248,22:249,24:250,26:251" "[#${hash}${status} ${message}]")
+        HASH=$(commitHash HEAD)
+        MESSAGE=$(commitMessage HEAD)
+        # Shorten hash and message if too long
+        HASH=${HASH:0:4}
+        [[ "${#MESSAGE}" -gt 14 ]] && MESSAGE="${MESSAGE:0:14}..."
 
-        allCharacters=$(( ${#gitCommitInfo} + 1 ))
-        nonPrintableCharacters=$(( nonPrintableCharacters + $(read -r -u 7 x ; echo "${x}") ))
-        printf "%s " "${gitCommitInfo}"
+        text="[#${HASH:-"????"}${STATUS} ${MESSAGE:-"..."}]"
+        prompt=$(colorize --fg-style 3 --fg-custom-scheme "0:238,1:${HASH_COLOR},2:239,4:240,6:${STATUS_COLOR},7:241,8:242,10:243,12:244,14:245,16:246,18:247,20:248,22:249,24:250,26:251" "${text}")
+
+        allCharacters=$(( ${#prompt} + 1 ))
+        nonPrintableCharacters=$(( nonPrintableCharacters + $(read -r -u 7 cs ; echo "${cs}") ))
+        printf "%s " "${prompt}"
     fi
 
     echo "${allCharacters}" >&7
@@ -63,100 +50,99 @@ gitCommitInfo() {
 }
 
 gitSyncInfo() {
-    local allCharacters=0
-    local nonPrintableCharacters=0
+    local allCharacters=0 nonPrintableCharacters=0
 
     if isGitRepo && isUpstreamConfigured ; then
+        # chars "↓↑▼▲"
+        local PRIMARY_COLOR=49 SECONDARY_COLOR=238 UP="↑" DOWN="↓" AHEAD="-" BEHIND="-" REMOTE_BRANCH text prompt
+        REMOTE_BRANCH=$(git for-each-ref --format='%(upstream:short)' "$(git symbolic-ref -q HEAD)")
+
         local UPSTREAM LOCAL REMOTE BASE
         UPSTREAM=${1:-'@{u}'}
         LOCAL=$(git rev-parse @)
         REMOTE=$(git rev-parse "${UPSTREAM}")
         BASE=$(git merge-base @ "${UPSTREAM}")
 
-        # chars "↓↑▼▲"
-        local PRIMARY_COLOR=229 SECONDARY_COLOR=244 UP="↑" DOWN="↓" AHEAD="-" BEHIND="-" REMOTE_BRANCH syncInfo gitSyncInfo
-        REMOTE_BRANCH=$(git for-each-ref --format='%(upstream:short)' "$(git symbolic-ref -q HEAD)")
-
         if [[ "${LOCAL}" = "${REMOTE}" ]] ; then # up-to-date
-            syncInfo="${DOWN}${BEHIND}${UP}${AHEAD} ⎇  ${REMOTE_BRANCH}"
-            gitSyncInfo=$(colorize --fg-color "${SECONDARY_COLOR}" --fg-step ${#syncInfo} "${syncInfo}")
+            text="${DOWN}${BEHIND}${UP}${AHEAD} ⎇  ${REMOTE_BRANCH}"
+            prompt=$(colorize --fg-color "${SECONDARY_COLOR}" --fg-step ${#text} "${text}")
         elif [[ "${LOCAL}" = "${BASE}" ]] ; then # need to pull
             BEHIND=$(git branch -vv | sed -n -e '/^\*/ { p }' | sed -e 's/.*\[.*behind \([1-9][0-9]*\).*\].*/\1/')
-            syncInfo="${DOWN}${BEHIND}${UP}${AHEAD}"
-            gitSyncInfo=$(colorize --fg-custom-scheme "0:${PRIMARY_COLOR},2:${SECONDARY_COLOR}" "${syncInfo}")
+            text="${DOWN}${BEHIND}${UP}${AHEAD}"
+            prompt=$(colorize --fg-custom-scheme "0:${PRIMARY_COLOR},2:${SECONDARY_COLOR}" "${text}")
             nonPrintableCharacters=$(( nonPrintableCharacters + $(read -r -u 7 x ; echo "${x}") ))
 
-            syncInfo=" ⎇  ${REMOTE_BRANCH}"
-            gitSyncInfo+=$(colorize --fg-color "${PRIMARY_COLOR}" --fg-step $(( ${#syncInfo} / 4 + 1 )) "${syncInfo}")
+            text=" ⎇  ${REMOTE_BRANCH}"
+            prompt+=$(colorize --fg-color "${PRIMARY_COLOR}" --fg-step $(( ${#text} / 4 + 1 )) "${text}")
         elif [[ "${REMOTE}" = "${BASE}" ]] ; then # need to push
             AHEAD=$(git branch -vv | sed -n -e '/^\*/ { p }' | sed -e 's/.*\[.*ahead \([1-9][0-9]*\).*\].*/\1/')
-            syncInfo="${DOWN}${BEHIND}${UP}${AHEAD}"
-            gitSyncInfo=$(colorize --fg-custom-scheme "0:${SECONDARY_COLOR},2:${PRIMARY_COLOR}" "${syncInfo}")
+            text="${DOWN}${BEHIND}${UP}${AHEAD}"
+            prompt=$(colorize --fg-custom-scheme "0:${SECONDARY_COLOR},2:${PRIMARY_COLOR}" "${text}")
             nonPrintableCharacters=$(( nonPrintableCharacters + $(read -r -u 7 x ; echo "${x}") ))
 
-            syncInfo=" ⎇  ${REMOTE_BRANCH}"
-            gitSyncInfo+=$(colorize --fg-color "${PRIMARY_COLOR}" --fg-step $(( ${#syncInfo} / 4 + 1 )) "${syncInfo}")
+            text=" ⎇  ${REMOTE_BRANCH}"
+            prompt+=$(colorize --fg-color "${PRIMARY_COLOR}" --fg-step $(( ${#text} / 4 + 1 )) "${text}")
         else # diverged
             BEHIND=$(git branch -vv | sed -n -e '/^\*/ { p }' | sed -e 's/.*\[.*behind \([1-9][0-9]*\).*\].*/\1/')
             AHEAD=$(git branch -vv | sed -n -e '/^\*/ { p }' | sed -e 's/.*\[.*ahead \([1-9][0-9]*\).*\].*/\1/')
-            syncInfo="${DOWN}${BEHIND}${UP}${AHEAD} ⎇  ${REMOTE_BRANCH}"
-            gitSyncInfo=$(colorize --fg-color "${PRIMARY_COLOR}" --fg-step $(( ${#syncInfo} / 4 + 1 )) "${syncInfo}")
+            text="${DOWN}${BEHIND}${UP}${AHEAD} ⎇  ${REMOTE_BRANCH}"
+            prompt=$(colorize --fg-color "${PRIMARY_COLOR}" --fg-step $(( ${#text} / 4 + 1 )) "${text}")
         fi
 
-        allCharacters=$(( ${#gitSyncInfo} + 1 ))
-        nonPrintableCharacters=$(( nonPrintableCharacters + $(read -r -u 7 x ; echo "${x}") ))
-        printf "%s " "${gitSyncInfo}"
+        allCharacters=$(( ${#prompt} + 1 ))
+        nonPrintableCharacters=$(( nonPrintableCharacters + $(read -r -u 7 cs ; echo "${cs}") ))
+        printf "%s " "${prompt}"
     fi
 
     echo "${allCharacters}" >&7
     echo "${nonPrintableCharacters}" >&7
 }
 
-gitSubmoduleInfo() {
-    local allCharacters=0
-    local nonPrintableCharacters=0
-
-    if isGitRepo && hasAnySubmodules ; then
-        local submodules
-        submodules=$(git config --file .gitmodules --get-regexp path | awk '{ print $2 }' ORS=' ')
-        local submodulesArray
-        IFS=' ' read -ra submodulesArray <<< "${submodules}"
-        local gitSubmoduleInfo
-        gitSubmoduleInfo=$(colorize --fg-color 238 --fg-color-step 1 "⚜ ")
-        nonPrintableCharacters=$(( nonPrintableCharacters + $(read -r -u 7 x ; echo "${x}") ))
-        for (( i = 0; i < "${#submodulesArray[@]}"; ++i )) ; do
-            local gitStatus
-            gitStatus=$(git --git-dir "${submodulesArray[${i}]}/.git" --work-tree "${submodulesArray[${i}]}" status --porcelain 2>/dev/null)
-            if [[ -n ${gitStatus} ]] ; then
-                color=$(( 196 + i ))
-            else
-                color=$(( 238 + i * 3 ))
-            fi
-
-            gitSubmoduleInfo+=$(colorize --fg-color "${color}" --fg-color-step 1 "${submodulesArray[${i}]}")
-            nonPrintableCharacters=$(( nonPrintableCharacters + $(read -r -u 7 x ; echo "${x}") ))
-
-            if [[ ${i} -ne $(( ${#submodulesArray[@]} - 1 )) ]] ; then
-                gitSubmoduleInfo+=$(colorize --fg-color "$(( 238 + i * 3 ))" --fg-color-step 1 "|")
-                nonPrintableCharacters=$(( nonPrintableCharacters + $(read -r -u 7 x ; echo "${x}") ))
-            fi
-        done
-        gitSubmoduleInfo+=$(colorize --fg-color "$(( 238 + ( ${#submodulesArray[@]} - 1 ) * 3 ))" --fg-color-step 1 " ⚜")
-        allCharacters=$(( ${#gitSubmoduleInfo} + 1 ))
-        nonPrintableCharacters=$(( nonPrintableCharacters + $(read -r -u 7 x ; echo "${x}") ))
-        printf "%s " "${gitSubmoduleInfo}"
-
-        # A little bit simpler approach
-        #gitSubmoduleInfo=$(colorize --fg-color 238 --fg-color-step 1 "🡶 $(IFS='|' ; echo "${submodulesArray[*]}") 🡶")
-
-        #allCharacters=$(( ${#gitSubmoduleInfo} + 1 ))
-        #nonPrintableCharacters=$(( nonPrintableCharacters + $(read -r -u 7 x ; echo "$x") ))
-        #printf "%s " "$gitSubmoduleInfo"
-    fi
-
-    echo "${allCharacters}" >&7
-    echo "${nonPrintableCharacters}" >&7
-}
+#gitSubmoduleInfo() {
+#    local allCharacters=0
+#    local nonPrintableCharacters=0
+#
+#    if isGitRepo && hasAnySubmodules ; then
+#        local submodules
+#        submodules=$(git config --file .gitmodules --get-regexp path | awk '{ print $2 }' ORS=' ')
+#        local submodulesArray
+#        IFS=' ' read -ra submodulesArray <<< "${submodules}"
+#        local gitSubmoduleInfo
+#        gitSubmoduleInfo=$(colorize --fg-color 238 --fg-color-step 1 "⚜ ")
+#        nonPrintableCharacters=$(( nonPrintableCharacters + $(read -r -u 7 x ; echo "${x}") ))
+#        for (( i = 0; i < "${#submodulesArray[@]}"; ++i )) ; do
+#            local gitStatus
+#            gitStatus=$(git --git-dir "${submodulesArray[${i}]}/.git" --work-tree "${submodulesArray[${i}]}" status --porcelain 2>/dev/null)
+#            if [[ -n ${gitStatus} ]] ; then
+#                color=$(( 196 + i ))
+#            else
+#                color=$(( 238 + i * 3 ))
+#            fi
+#
+#            gitSubmoduleInfo+=$(colorize --fg-color "${color}" --fg-color-step 1 "${submodulesArray[${i}]}")
+#            nonPrintableCharacters=$(( nonPrintableCharacters + $(read -r -u 7 x ; echo "${x}") ))
+#
+#            if [[ ${i} -ne $(( ${#submodulesArray[@]} - 1 )) ]] ; then
+#                gitSubmoduleInfo+=$(colorize --fg-color "$(( 238 + i * 3 ))" --fg-color-step 1 "|")
+#                nonPrintableCharacters=$(( nonPrintableCharacters + $(read -r -u 7 x ; echo "${x}") ))
+#            fi
+#        done
+#        gitSubmoduleInfo+=$(colorize --fg-color "$(( 238 + ( ${#submodulesArray[@]} - 1 ) * 3 ))" --fg-color-step 1 " ⚜")
+#        allCharacters=$(( ${#gitSubmoduleInfo} + 1 ))
+#        nonPrintableCharacters=$(( nonPrintableCharacters + $(read -r -u 7 x ; echo "${x}") ))
+#        printf "%s " "${gitSubmoduleInfo}"
+#
+#        # A little bit simpler approach
+#        #gitSubmoduleInfo=$(colorize --fg-color 238 --fg-color-step 1 "🡶 $(IFS='|' ; echo "${submodulesArray[*]}") 🡶")
+#
+#        #allCharacters=$(( ${#gitSubmoduleInfo} + 1 ))
+#        #nonPrintableCharacters=$(( nonPrintableCharacters + $(read -r -u 7 x ; echo "$x") ))
+#        #printf "%s " "$gitSubmoduleInfo"
+#    fi
+#
+#    echo "${allCharacters}" >&7
+#    echo "${nonPrintableCharacters}" >&7
+#}
 
 isGitRepo() {
     git status --porcelain >/dev/null 2>&1
