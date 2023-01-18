@@ -1,0 +1,15 @@
+#!/bin/bash
+
+FILE=$1 # kthids
+ORGANIZATION=$2 # prutt21, intnet22
+REPO=$3 # lab{0..N}, project
+
+# gh auth login --hostname "gits-15.sys.kth.se"
+
+while read -r line ; do
+    # use DELETE to remove a collaborator
+    # pull, push (default), admin, maintain, triage, custom repository role name
+    gh api -X PUT "/repos/${ORGANIZATION}/${REPO}/collaborators/${line}" -f permission=pull || { printf "%s not added as a collaborator" "${line}" ;}
+
+    # echo "${line}"
+done <"${FILE}"

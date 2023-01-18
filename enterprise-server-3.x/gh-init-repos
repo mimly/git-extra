@@ -1,0 +1,44 @@
+#!/bin/bash
+
+FILE=$1 # kthids
+ORGANIZATION=$2 # prutt21, intnet22
+ASSIGNMENT=$3 # lab{0..N}, project
+INITIAL_FILES_PATH=$4 #
+
+# gh auth login --hostname "gits-15.sys.kth.se"
+
+# Add default keys ~/.ssh/id_{r,d,ecd,...}sa to an agent and specifie a maximum lifetime in minutes
+eval "$(ssh-agent)"
+ssh-add -t 30m ~/.ssh/git/id_ed25519
+
+join() {
+    local -n str=$1
+    local IFS="$2"; shift 2; str="$*";
+}
+
+split() {
+    local -n arr=$1
+    local IFS="$2"; shift 2; read -ra arr <<< "$*"
+}
+
+while read -r line ; do
+    declare -a STUDENTS
+    split STUDENTS " " "${line}" # split by ' ' and uppdate STUDENTS : array
+    GROUP=
+    join GROUP "-" "${STUDENTS[@]}" # join by '-' and update GROUP : string
+
+    mkdir "${GROUP}-${ASSIGNMENT}"
+    cd "${GROUP}-${ASSIGNMENT}" || exit 1
+    git init >/dev/null
+    git profile kth >/dev/null
+    rsync -a "../${INITIAL_FILES_PATH}" .
+    #git remote remove origin
+    git revision --date="2022-12-05T00:00:00" "Initial commit" >/dev/null
+    gh repo create "${ORGANIZATION}/${GROUP}-${ASSIGNMENT}" --private --source=. --push
+    for STUDENT in "${STUDENTS[@]}" ; do
+        gh api -X PUT "/repos/${ORGANIZATION}/${GROUP}-${ASSIGNMENT}/collaborators/${STUDENT}" #-f '{"permission": push}' # pull, push (default), admin, maintain, triage, custom repository role name
+    done
+    cd .. || exit 1
+
+    # echo "${line}"
+done <"${FILE}"

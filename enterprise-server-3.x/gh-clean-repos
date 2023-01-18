@@ -1,0 +1,30 @@
+#!/bin/bash
+
+FILE=$1 # kthids
+ORGANIZATION=$2 # prutt21, intnet22
+ASSIGNMENT=$3 # lab{0..N}, project
+
+# gh auth login --hostname "gits-15.sys.kth.se"
+# gh auth refresh -s delete_repo
+
+join() {
+    local -n str=$1
+    local IFS="$2"; shift 2; str="$*";
+}
+
+split() {
+    local -n arr=$1
+    local IFS="$2"; shift 2; read -ra arr <<< "$*"
+}
+
+while read -r line ; do
+    declare -a STUDENTS
+    split STUDENTS " " "${line}" # split by ' ' and uppdate STUDENTS : array
+    GROUP=
+    join GROUP "-" "${STUDENTS[@]}" # join by '-' and update GROUP : string
+
+    #gh repo delete "${ORGANIZATION}/${GROUP}-${ASSIGNMENT}" --confirm
+    rm -rf "${GROUP}-${ASSIGNMENT}"
+
+    # echo "${line}"
+done <"${FILE}"
