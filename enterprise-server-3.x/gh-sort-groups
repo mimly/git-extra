@@ -1,0 +1,6 @@
+#!/bin/sh
+
+FILE=$1
+
+# works for any number of members in a group
+awk -F'\n' '{ len = split($0, groups, "[ \t]+") ; asort(groups, sorted) ; line = sorted[1] ; for (i = 2; i <= len; ++i) { line = line " " sorted[i] } ; print line }' "${FILE}" | sort
