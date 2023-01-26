@@ -1,15 +1,75 @@
 #!/bin/bash
 
-FILE=$1 # kthids
-ORGANIZATION=$2 # prutt21, intnet22
-ASSIGNMENT=$3 # lab{0..N}, project
-INITIAL_FILES_PATH=$4 #
+set -o errexit
+set -o errtrace
+set -o nounset
+set -o pipefail
 
-# gh auth login --hostname "gits-15.sys.kth.se"
+. bash_template.sh
 
-# Add default keys ~/.ssh/id_{r,d,ecd,...}sa to an agent and specifie a maximum lifetime in minutes
-eval "$(ssh-agent)"
-ssh-add -t 30m ~/.ssh/git/id_ed25519
+SCRIPT_VERSION="1.0.0"
+SCRIPT_DESCRIPTION="-"
+SCRIPT_FULL_DESCRIPTION="-"
+SCRIPT_ARGUMENTS="[OPTION]... FILE..."
+SCRIPT_OPTIONS=(\
+    "-o ORGANIZATION, --organization=ORGANIZATION"\
+    "-a ASSIGNMENT, --assignment=ASSIGNMENT"\
+    "-t TEMPLATE, --template=TEMPLATE"\
+    "-v, --verbose"\
+    "--help"\
+    "--version"\
+)
+SCRIPT_OPTION_DESCRIPTIONS=(\
+    "e.g. prutt21, intnet22"\
+    "e.g. lab1, project"\
+    "path to template"\
+    "explain what is being done"\
+    "display this help and exit"\
+    "output version information and exit"\
+)
+SCRIPT_EXAMPLES=(\
+    "--organization prutt21 --assignment lab1 --template templates/lab1 groups"\
+)
+SCRIPT_SEE_ALSO=(\
+    "gh-add-collaborators(1)"\
+    "gh-add-members(1)"\
+    "gh-clean-repos(1)"\
+    "gh-sort-groups(1)"\
+)
+
+# We use "$@" instead of $* to preserve argument-boundary information
+# Add : to suppress getopt error messages, i.e. getopt -o ':...'
+ARGS=$(getopt -o 'o:a:t:v' --long 'organization:,assignment:,template:,verbose,help,version,update-manual' -- "$@") || { usage ; exit 1 ; }
+eval "set -- ${ARGS}"
+
+while true; do
+    case $1 in
+        (-o|--organization)
+            ORGANIZATION=$2 ; shift 2 ;;
+        (-a|--assignment)
+            ASSIGNMENT=$2 ; shift 2 ;;
+        (-t|--template)
+            TEMPLATE=$2 ; shift 2 ;;
+        (-v|--verbose)
+            verbose= ; shift ;;
+        (--help)
+            usageFull ; exit 0 ;;
+        (--version)
+            about ; changelog ; exit 0 ;;
+        (--update-manual) # hidden option
+            updateManual ; exit 0 ;;
+        (--)
+            shift ; break ;;
+        (*)
+            usage ; exit 1 ;;
+    esac
+done
+
+FILES=("$@")
+
+[[ -v ORGANIZATION ]] || { error "required parameters not supplied" ; usage ; exit 1 ; } ;
+[[ -v ASSIGNMENT ]] || { error "required parameters not supplied" ; usage ; exit 1 ; } ;
+[[ -v TEMPLATE ]] || { error "required parameters not supplied" ; usage ; exit 1 ; } ;
 
 join() {
     local -n str=$1
@@ -21,6 +81,12 @@ split() {
     local IFS="$2"; shift 2; read -ra arr <<< "$*"
 }
 
+# gh auth login --hostname "gits-15.sys.kth.se"
+
+# Add default keys ~/.ssh/id_{r,d,ecd,...}sa to an agent and specifie a maximum lifetime in minutes
+eval "$(ssh-agent)"
+ssh-add -t 30m ~/.ssh/git/id_ed25519
+
 while read -r line ; do
     declare -a STUDENTS
     split STUDENTS " " "${line}" # split by ' ' and uppdate STUDENTS : array
@@ -31,7 +97,7 @@ while read -r line ; do
     cd "${GROUP}-${ASSIGNMENT}" || exit 1
     git init >/dev/null
     git profile kth >/dev/null
-    rsync -a "../${INITIAL_FILES_PATH}" .
+    rsync -a "../${TEMPLATE}" .
     #git remote remove origin
     git revision --date="2022-12-05T00:00:00" "Initial commit" >/dev/null
     gh repo create "${ORGANIZATION}/${GROUP}-${ASSIGNMENT}" --private --source=. --push
@@ -41,4 +107,4 @@ while read -r line ; do
     cd .. || exit 1
 
     # echo "${line}"
-done <"${FILE}"
+done < <(cat "${FILES[@]:--}") || true # or <(cat "$@" /dev/stdin)

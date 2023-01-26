@@ -14,7 +14,6 @@ SCRIPT_ARGUMENTS="[OPTION]... FILE..."
 SCRIPT_OPTIONS=(\
     "-o ORGANIZATION, --organization=ORGANIZATION"\
     "-a ASSIGNMENT, --assignment=ASSIGNMENT"\
-    "-l, --local"\
     "-v, --verbose"\
     "--help"\
     "--version"\
@@ -22,7 +21,6 @@ SCRIPT_OPTIONS=(\
 SCRIPT_OPTION_DESCRIPTIONS=(\
     "e.g. prutt21, intnet22"\
     "e.g. lab1, project"\
-    "clean local repos only"\
     "explain what is being done"\
     "display this help and exit"\
     "output version information and exit"\
@@ -31,15 +29,15 @@ SCRIPT_EXAMPLES=(\
     "--organization prutt21 --assignment lab1 groups"\
 )
 SCRIPT_SEE_ALSO=(\
-    "gh-add-collaborators(1)"\
     "gh-add-members(1)"\
+    "gh-clean-repos(1)"\
     "gh-init-repos(1)"\
     "gh-sort-groups(1)"\
 )
 
 # We use "$@" instead of $* to preserve argument-boundary information
 # Add : to suppress getopt error messages, i.e. getopt -o ':...'
-ARGS=$(getopt -o 'o:a:lv' --long 'organization:,assignment:,local,verbose,help,version,update-manual' -- "$@") || { usage ; exit 1 ; }
+ARGS=$(getopt -o 'o:a:v' --long 'organization:,assignment:,verbose,help,version,update-manual' -- "$@") || { usage ; exit 1 ; }
 eval "set -- ${ARGS}"
 
 while true; do
@@ -48,8 +46,6 @@ while true; do
             ORGANIZATION=$2 ; shift 2 ;;
         (-a|--assignment)
             ASSIGNMENT=$2 ; shift 2 ;;
-        (-l|--local)
-            local= ; shift ;;
         (-v|--verbose)
             verbose= ; shift ;;
         (--help)
@@ -81,7 +77,6 @@ split() {
 }
 
 # gh auth login --hostname "gits-15.sys.kth.se"
-# gh auth refresh -s delete_repo
 
 while read -r line ; do
     declare -a STUDENTS
@@ -89,10 +84,11 @@ while read -r line ; do
     GROUP=
     join GROUP "-" "${STUDENTS[@]}" # join by '-' and update GROUP : string
 
-    if [[ ! -v local ]] ; then
-        gh repo delete "${ORGANIZATION}/${GROUP}-${ASSIGNMENT}" --confirm
-    fi
-    rm -rf "${GROUP}-${ASSIGNMENT}"
+    for STUDENT in "${STUDENTS[@]}" ; do
+        # use DELETE to remove a collaborator
+        # pull, push (default), admin, maintain, triage, custom repository role name
+        gh api -X PUT "/repos/${ORGANIZATION}/${GROUP}-${ASSIGNMENT}/collaborators/${STUDENT}" -f permission=pull || { printf "%s not added as a collaborator" "${STUDENT}" ;}
+    done
 
     # echo "${line}"
 done < <(cat "${FILES[@]:--}") || true # or <(cat "$@" /dev/stdin)
