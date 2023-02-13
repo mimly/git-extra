@@ -185,7 +185,7 @@ isValidDate() {
 totalNumberOfCommits() {
     local hash=$1
     hash=$(commitHash "${hash}")
-    git rev-list --count "${hash}" 2>/dev/null || return 0
+    git rev-list --count --no-merges "${hash}" 2>/dev/null || return 0
 }
 
 ##################################################
